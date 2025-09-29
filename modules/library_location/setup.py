@@ -35,7 +35,7 @@ version = info.get('version', '0.0.1')
 major_version, minor_version, _ = version.split('.', 2)
 major_version = int(major_version)
 minor_version = int(minor_version)
-name = 'trytond_training_override'
+name = 'trytond_training_exercise'
 
 download_url = 'http://downloads.tryton.org/%s.%s/' % (
     major_version, minor_version)
@@ -62,12 +62,12 @@ setup(name=name,
     url='http://www.tryton.org/',
     download_url=download_url,
     keywords='tryton training library',
-    package_dir={'trytond.modules.library_borrow': '.'},
+    package_dir={'trytond.modules.library_location': '.'},
     packages=[
-        'trytond.modules.library_borrow',
+        'trytond.modules.library_location',
         ],
     package_data={
-        'trytond.modules.library_borrow': (info.get('xml', [])
+        'trytond.modules.library_location': (info.get('xml', [])
             + ['tryton.cfg', 'view/*.xml', 'locale/*.po', 'icons/*.svg',
             'tests/*.rst']),
         },
@@ -79,6 +79,6 @@ setup(name=name,
     zip_safe=False,
     entry_points="""
     [trytond.modules]
-    library_borrow = trytond.modules.library_borrow
+    library_location = trytond.modules.library_location
     """,
     )

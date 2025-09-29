@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<form>
+    <label name="exemplaries"/>
+    <field name="exemplaries"/>
+    <label name="target_bookshelf"/>
+    <field name="target_bookshelf"/>
+</form>

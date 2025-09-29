@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<tryton>
+    <data>
+        <!-- #################### -->
+        <!-- # Put In Bookshelf # -->
+        <!-- #################### -->
+        <record model="ir.action.wizard" id="act_put_in_bookshelf">
+            <field name="name">Put In Bookshelf</field>
+            <field name="wiz_name">library.book.exemplary.put_in_bookshelf</field>
+        </record>
+        <record model="ir.action.keyword" id="act_put_in_bookshelf_keyword">
+            <field name="keyword">form_action</field>
+            <field name="model">library.book.exemplary,-1</field>
+            <field name="action" ref="act_put_in_bookshelf"/>
+        </record>
+        <!-- ############################### -->
+        <!-- # Put In Bookshelf Parameters # -->
+        <!-- ############################### -->
+        <record model="ir.ui.view" id="put_in_bookshelf_parameters_view_form">
+            <field name="model">library.book.exemplary.put_in_bookshelf.parameters</field>
+            <field name="type">form</field>
+            <field name="name">put_in_bookshelf_parameters_form</field>
+        </record>
+        <!-- ######################### -->
+        <!-- # Take Out Of Bookshelf # -->
+        <!-- ######################### -->
+        <record model="ir.action.wizard" id="act_exemplary_take_out_of_bookshelf">
+            <field name="name">Take out of Bookshelf</field>
+            <field name="wiz_name">library.book.exemplary.take_out_from_bookshelf</field>
+        </record>
+        <record model="ir.action.keyword" id="act_exemplary_take_out_of_bookshelf_keyword">
+            <field name="keyword">form_action</field>
+            <field name="model">library.book.exemplary,-1</field>
+            <field name="action" ref="act_exemplary_take_out_of_bookshelf"/>
+        </record>
+        <!-- #################################### -->
+        <!-- # Take Out Of Bookshelf Parameters # -->
+        <!-- #################################### -->
+        <record model="ir.ui.view" id="exemplary_take_out_of_bookshelf_view_form">
+            <field name="model">library.book.exemplary.take_out_from_bookshelf.parameters</field>
+            <field name="type">form</field>
+            <field name="name">take_out_of_bookshelf_parameters_form</field>
+        </record>
+    </data>
+</tryton>

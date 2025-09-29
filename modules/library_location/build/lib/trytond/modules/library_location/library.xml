@@ -1,0 +1,116 @@
+<?xml version="1.0"?>
+<tryton>
+    <data>
+        <menuitem name="Organisation" id="menu_library_organisation" parent="library.menu_library" sequence="1"/>
+        <!-- ######### -->
+        <!-- # Floor # -->
+        <!-- ######### -->
+        <record model="ir.ui.view" id="floor_view_form">
+            <field name="model">library.floor</field>
+            <field name="type">form</field>
+            <field name="name">floor_form</field>
+        </record>
+        <record model="ir.ui.view" id="floor_view_list">
+            <field name="model">library.floor</field>
+            <field name="type">tree</field>
+            <field name="name">floor_list</field>
+        </record>
+        <record model="ir.action.act_window" id="act_open_floor">
+            <field name="name">Floors</field>
+            <field name="res_model">library.floor</field>
+        </record>
+        <record model="ir.action.act_window.view" id="act_open_floor_view_list">
+            <field name="sequence" eval="10"/>
+            <field name="view" ref="floor_view_list"/>
+            <field name="act_window" ref="act_open_floor"/>
+        </record>
+        <record model="ir.action.act_window.view" id="act_open_floor_view_form">
+            <field name="sequence" eval="20"/>
+            <field name="view" ref="floor_view_form"/>
+            <field name="act_window" ref="act_open_floor"/>
+        </record>
+        <menuitem parent="menu_library_organisation" sequence="50" action="act_open_floor" id="menu_open_floor"/>
+        <!-- ######## -->
+        <!-- # Room # -->
+        <!-- ######## -->
+        <record model="ir.ui.view" id="floor_room_view_form">
+            <field name="model">library.floor.room</field>
+            <field name="type">form</field>
+            <field name="name">floor_room_form</field>
+        </record>
+        <record model="ir.ui.view" id="floor_room_view_list">
+            <field name="model">library.floor.room</field>
+            <field name="type">tree</field>
+            <field name="name">floor_room_list</field>
+        </record>
+        <record model="ir.action.act_window" id="act_open_floor_room">
+            <field name="name">Rooms</field>
+            <field name="res_model">library.floor.room</field>
+        </record>
+        <record model="ir.action.act_window.view" id="act_open_floor_room_view_list">
+            <field name="sequence" eval="10"/>
+            <field name="view" ref="floor_room_view_list"/>
+            <field name="act_window" ref="act_open_floor_room"/>
+        </record>
+        <record model="ir.action.act_window.view" id="act_open_floor_room_view_form">
+            <field name="sequence" eval="20"/>
+            <field name="view" ref="floor_room_view_form"/>
+            <field name="act_window" ref="act_open_floor_room"/>
+        </record>
+        <menuitem parent="menu_library_organisation" sequence="60" action="act_open_floor_room" id="menu_open_floor_room"/>
+        <!-- ############# -->
+        <!-- # Bookshelf # -->
+        <!-- ############# -->
+        <record model="ir.ui.view" id="floor_room_bookshelf_view_form">
+            <field name="model">library.floor.room.bookshelf</field>
+            <field name="type">form</field>
+            <field name="name">floor_room_bookshelf_form</field>
+        </record>
+        <record model="ir.ui.view" id="floor_room_bookshelf_view_list">
+            <field name="model">library.floor.room.bookshelf</field>
+            <field name="type">tree</field>
+            <field name="name">floor_room_bookshelf_list</field>
+        </record>
+        <record model="ir.action.act_window" id="act_open_floor_room_bookshelf">
+            <field name="name">Bookshelves</field>
+            <field name="res_model">library.floor.room.bookshelf</field>
+        </record>
+        <record model="ir.action.act_window.domain" id="act_floor_room_bookshelf_domain_full">
+            <field name="name">Full</field>
+            <field name="sequence" eval="10"/>
+            <field name="domain" eval="[('is_full', '=', True)]" pyson="1"/>
+            <field name="act_window" ref="act_open_floor_room_bookshelf"/>
+        </record>
+        <record model="ir.action.act_window.domain" id="act_floor_room_bookshelf_domain_not_full">
+            <field name="name">Available</field>
+            <field name="sequence" eval="20"/>
+            <field name="domain" eval="[('is_full', '=', False)]" pyson="1"/>
+            <field name="act_window" ref="act_open_floor_room_bookshelf"/>
+        </record>
+        <record model="ir.action.act_window.view" id="act_open_floor_room_bookshelf_view_list">
+            <field name="sequence" eval="10"/>
+            <field name="view" ref="floor_room_bookshelf_view_list"/>
+            <field name="act_window" ref="act_open_floor_room_bookshelf"/>
+        </record>
+        <record model="ir.action.act_window.view" id="act_open_floor_room_bookshelf_view_form">
+            <field name="sequence" eval="20"/>
+            <field name="view" ref="floor_room_bookshelf_view_form"/>
+            <field name="act_window" ref="act_open_floor_room_bookshelf"/>
+        </record>
+        <menuitem parent="menu_library_organisation" sequence="70" action="act_open_floor_room_bookshelf" id="menu_open_floor_room_bookshelf"/>
+        <!-- ############# -->
+        <!-- # Exemplary # -->
+        <!-- ############# -->
+        <record model="ir.ui.view" id="exemplary_view_form">
+            <field name="model">library.book.exemplary</field>
+            <field name="inherit" ref="library.exemplary_view_form"/>
+            <field name="name">exemplary_form</field>
+        </record>
+        <record model="ir.ui.view" id="exemplary_view_list">
+            <field name="model">library.book.exemplary</field>
+            <field name="inherit" ref="library.exemplary_view_list"/>
+            <field name="name">exemplary_list</field>
+        </record>
+        <menuitem parent="menu_library_organisation" sequence="80" action="library.act_exemplary" id="menu_exemplary"/>
+    </data>
+</tryton>
