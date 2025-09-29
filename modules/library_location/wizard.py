@@ -17,6 +17,7 @@ __all__ = [
 
 class PutInBookshelf(Wizard):
     'Put In Bookshelf'
+
     __name__ = 'library.book.exemplary.put_in_bookshelf'
 
     start_state = 'parameters'
@@ -27,8 +28,35 @@ class PutInBookshelf(Wizard):
             default=True)])
     put = StateTransition()
 
+    @classmethod
+    def __setup__(cls):
+        super().__setup__()
+        cls._error_messages.update({
+                'not_enough_space': 'There is not enough space in the selected bookshelf'
+                'to put the exemplaries in',
+                })
+
+    def default_parameters(self, name):
+        Exemplary = Pool().get('library.book.exemplary')
+        exemplaries = Exemplary.browse(
+                Transaction().context.get('active_ids'))
+
+        return {
+            'exemplaries': [e.id for e in exemplaries]
+        }
+    
+    def transition_put(self):
+        Exemplary = Pool().get('library.book.exemplary')
+
+        Exemplary.write(list(self.parameters.exemplaries), {
+                'bookshelf': self.parameters.target_bookshelf})
+        
+        return 'end'
+
+
 class PutInBookshelfParameters(ModelView):
     'Put In bookshelf Parameters'
+
     __name__ = 'library.book.exemplary.put_in_bookshelf.parameters'
 
     exemplaries = fields.Many2Many('library.book.exemplary', None, None,
@@ -38,6 +66,7 @@ class PutInBookshelfParameters(ModelView):
     
 class TakeOutFromBookshelf(Wizard):
     'Take Ouf Of Bookshelf'
+
     __name__ = 'library.book.exemplary.take_out_from_bookshelf'
 
     start_state = 'parameters'
@@ -50,7 +79,26 @@ class TakeOutFromBookshelf(Wizard):
     )
     take_out = StateTransition()
 
+    def default_parameters(self, name):
+        Exemplary = Pool().get('library.book.exemplary')
+        exemplaries = Exemplary.browse(
+                Transaction().context.get('active_ids'))
+
+        return {
+            'exemplaries': [e.id for e in exemplaries]
+        }
+    
+    def transition_take_out(self):
+        Exemplary = Pool().get('library.book.exemplary')
+
+        Exemplary.write(list(self.parameters.exemplaries), {
+                'bookshelf': None})
+        
+        return 'end'
+
 class TakeOutFromBookshelfParameters(ModelView):
+    'Take Ouf Of Bookshelf Parameters'
+
     __name__ = 'library.book.exemplary.take_out_from_bookshelf.parameters'
 
     exemplaries = fields.Many2Many('library.book.exemplary', None, None,

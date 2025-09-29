@@ -4,12 +4,14 @@
     <field name="name"/>
     <label name="room"/>
     <field name="room"/>
-    <label name="capacity"/>
+    <!-- <label name="capacity"/>
     <field name="capacity"/>
     <label name="is_full"/>
-    <field name="is_full"/>
+    <field name="is_full"/> -->
     <label name="number_of_exemplaries"/>
     <field name="number_of_exemplaries"/>
     <label name="exemplaries"/>
     <field name="exemplaries"/>
+    <!-- <label name="available_slots"/>
+    <field name="available_slots"/> -->
 </form>
