@@ -11,10 +11,10 @@ def register():
         library.Bookshelf,
         library.Exemplary,
         wizard.PutInBookshelfParameters,
-        wizard.TakeOutFromBookshelfParameters,
+        wizard.PutInStorageParameters,
         module='library_location', type_='model')
 
     Pool.register(
         wizard.PutInBookshelf,
-        wizard.TakeOutFromBookshelf,
+        wizard.PutInStorage,
         module='library_location', type_='wizard')

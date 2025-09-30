@@ -107,8 +107,40 @@ class Bookshelf(ModelSQL, ModelView):
 class Exemplary(metaclass=PoolMeta):
     __name__ = 'library.book.exemplary'
 
-    bookshelf = fields.Many2One('library.floor.room.bookshelf', 'Bookshelf', required=False,
+    bookshelf = fields.Many2One('library.floor.room.bookshelf', 'Bookshelf',
         ondelete='RESTRICT', select=True)
+    is_in_storage = fields.Function(
+        fields.Boolean('Is in storage', help='Boolean to true if the exemplary is currently in storage'),
+        'getter_is_in_storage',
+        searcher='search_is_in_storage'
+    )
+
+    @classmethod
+    def getter_is_in_storage(cls, exemplaries, name):
+        exemplary = Pool().get('library.book.exemplary').__table__()
+        result = {e.id: False for e in exemplaries}
+        cursor = Transaction().connection.cursor()
+        
+        cursor.execute(*exemplary.select(exemplary.id, exemplary.bookshelf,
+                where=((exemplary.id.in_([e.id for e in exemplaries])) &
+                       (exemplary.bookshelf == None))))
+        
+        for exemplary_id, _ in cursor.fetchall():
+            result[exemplary_id] = True
+
+        return result
+    
+    @classmethod
+    def search_is_in_storage(cls, name, clause):
+        _, operator, value = clause
+        if operator == '!=':
+            value = not value
+        exemplary = Pool().get('library.book.exemplary').__table__()
+
+        query = exemplary.select(exemplary.id, where=(exemplary.bookshelf == None))
+
+        return [('id', 'in' if value else 'not in', query)]
+
     
 # class Bookshelf(ModelSQL, ModelView):
 #     'Bookshelf'

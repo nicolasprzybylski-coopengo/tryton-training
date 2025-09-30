@@ -10,8 +10,8 @@ from trytond.wizard import Button
 __all__ = [
     'PutInBookshelf',
     'PutInBookshelfParameters',
-    'TakeOutFromBookshelf',
-    'TakeOutFromBookshelfParameters'
+    'PutInStorageBookshelf',
+    'PutInStorageBookshelfParameters'
     ]
 
 
@@ -64,20 +64,20 @@ class PutInBookshelfParameters(ModelView):
     target_bookshelf = fields.Many2One('library.floor.room.bookshelf', 'Target Bookshelf',
                                        required=True)
     
-class TakeOutFromBookshelf(Wizard):
-    'Take Ouf Of Bookshelf'
+class PutInStorage(Wizard):
+    'Put In Storage'
 
-    __name__ = 'library.book.exemplary.take_out_from_bookshelf'
+    __name__ = 'library.book.exemplary.put_in_storage'
 
     start_state = 'parameters'
     parameters = StateView(
-        'library.book.exemplary.take_out_from_bookshelf.parameters',
-        'library_location.exemplary_take_out_of_bookshelf_view_form', [
+        'library.book.exemplary.put_in_storage.parameters',
+        'library_location.exemplary_put_in_storage_view_form', [
         Button('Cancel', 'end', 'tryton-cancel'),
-        Button('Take Out', 'take_out', 'tryton-go-next',
+        Button('Put in storage', 'put_in', 'tryton-go-next',
             default=True)]
     )
-    take_out = StateTransition()
+    put_in = StateTransition()
 
     def default_parameters(self, name):
         Exemplary = Pool().get('library.book.exemplary')
@@ -88,7 +88,7 @@ class TakeOutFromBookshelf(Wizard):
             'exemplaries': [e.id for e in exemplaries]
         }
     
-    def transition_take_out(self):
+    def transition_put_in(self):
         Exemplary = Pool().get('library.book.exemplary')
 
         Exemplary.write(list(self.parameters.exemplaries), {
@@ -96,10 +96,10 @@ class TakeOutFromBookshelf(Wizard):
         
         return 'end'
 
-class TakeOutFromBookshelfParameters(ModelView):
+class PutInStorageParameters(ModelView):
     'Take Ouf Of Bookshelf Parameters'
 
-    __name__ = 'library.book.exemplary.take_out_from_bookshelf.parameters'
+    __name__ = 'library.book.exemplary.put_in_storage.parameters'
 
     exemplaries = fields.Many2Many('library.book.exemplary', None, None,
         'Exemplaries', required=True)

@@ -21,25 +21,25 @@
             <field name="type">form</field>
             <field name="name">put_in_bookshelf_parameters_form</field>
         </record>
-        <!-- ######################### -->
-        <!-- # Take Out Of Bookshelf # -->
-        <!-- ######################### -->
-        <record model="ir.action.wizard" id="act_exemplary_take_out_of_bookshelf">
-            <field name="name">Take out of Bookshelf</field>
-            <field name="wiz_name">library.book.exemplary.take_out_from_bookshelf</field>
+        <!-- ################### -->
+        <!-- # Put In Storage # -->
+        <!-- ################## -->
+        <record model="ir.action.wizard" id="act_exemplary_put_in_storage">
+            <field name="name">Put In Storage</field>
+            <field name="wiz_name">library.book.exemplary.put_in_storage</field>
         </record>
-        <record model="ir.action.keyword" id="act_exemplary_take_out_of_bookshelf_keyword">
+        <record model="ir.action.keyword" id="act_exemplary_put_in_storage_keyword">
             <field name="keyword">form_action</field>
             <field name="model">library.book.exemplary,-1</field>
-            <field name="action" ref="act_exemplary_take_out_of_bookshelf"/>
+            <field name="action" ref="act_exemplary_put_in_storage"/>
         </record>
-        <!-- #################################### -->
-        <!-- # Take Out Of Bookshelf Parameters # -->
-        <!-- #################################### -->
-        <record model="ir.ui.view" id="exemplary_take_out_of_bookshelf_view_form">
-            <field name="model">library.book.exemplary.take_out_from_bookshelf.parameters</field>
+        <!-- ############################# -->
+        <!-- # Put In Storage Parameters # -->
+        <!-- ############################# -->
+        <record model="ir.ui.view" id="exemplary_put_in_storage_view_form">
+            <field name="model">library.book.exemplary.put_in_storage.parameters</field>
             <field name="type">form</field>
-            <field name="name">take_out_of_bookshelf_parameters_form</field>
+            <field name="name">put_in_storage_parameters_form</field>
         </record>
     </data>
 </tryton>
