@@ -98,6 +98,34 @@
             <field name="act_window" ref="act_open_floor_room_bookshelf"/>
         </record>
         <menuitem parent="menu_library_organisation" sequence="70" action="act_open_floor_room_bookshelf" id="menu_open_floor_room_bookshelf"/>
+        <!-- ################### -->
+        <!-- # Quarantine Zone # -->
+        <!-- ################### -->
+        <record model="ir.ui.view" id="quarantine_zone_view_form">
+            <field name="model">library.quarantine_zone</field>
+            <field name="type">form</field>
+            <field name="name">quarantine_zone_form</field>
+        </record>
+        <record model="ir.ui.view" id="quarantine_zone_view_list">
+            <field name="model">library.quarantine_zone</field>
+            <field name="type">tree</field>
+            <field name="name">quarantine_zone_list</field>
+        </record>
+        <record model="ir.action.act_window" id="act_open_quarantine_zone">
+            <field name="name">Quarantine Zone</field>
+            <field name="res_model">library.quarantine_zone</field>
+        </record>
+        <record model="ir.action.act_window.view" id="act_open_quarantine_zone_view_list">
+            <field name="sequence" eval="10"/>
+            <field name="view" ref="quarantine_zone_view_list"/>
+            <field name="act_window" ref="act_open_quarantine_zone"/>
+        </record>
+        <record model="ir.action.act_window.view" id="act_open_quarantine_zone_view_form">
+            <field name="sequence" eval="20"/>
+            <field name="view" ref="quarantine_zone_view_form"/>
+            <field name="act_window" ref="act_open_quarantine_zone"/>
+        </record>
+        <menuitem parent="menu_library_organisation" sequence="80" action="act_open_quarantine_zone" id="menu_quarantine_zone"/>
         <!-- ############# -->
         <!-- # Exemplary # -->
         <!-- ############# -->
@@ -123,6 +151,6 @@
             <field name="domain" eval="[('is_in_storage', '=', False)]" pyson="1"/>
             <field name="act_window" ref="library.act_exemplary"/>
         </record>
-        <menuitem parent="menu_library_organisation" sequence="80" action="library.act_exemplary" id="menu_exemplary"/>
+        <menuitem parent="menu_library_organisation" sequence="90" action="library.act_exemplary" id="menu_exemplary"/>
     </data>
 </tryton>

@@ -8,14 +8,15 @@ from trytond.pool import Pool, PoolMeta
 from trytond.transaction import Transaction
 from trytond.model import ModelSQL, ModelView, fields
 from trytond.model import Unique
-from trytond.pyson import Eval, If, Bool
+from trytond.pyson import Eval, If, Bool, Date
 
 
 __all__ = [
     'Floor',
     'Room',
     'Bookshelf',
-    'Exemplary'
+    'Exemplary',
+    'QuarantineZone'
     ]
 
 class Floor(ModelSQL, ModelView):
@@ -108,7 +109,7 @@ class Exemplary(metaclass=PoolMeta):
     __name__ = 'library.book.exemplary'
 
     bookshelf = fields.Many2One('library.floor.room.bookshelf', 'Bookshelf',
-        ondelete='RESTRICT', select=True)
+        ondelete='RESTRICT', select=True, readonly=True)
     is_in_storage = fields.Function(
         fields.Boolean('Is in storage', help='Boolean to true if the exemplary is currently in storage'),
         'getter_is_in_storage',
@@ -141,7 +142,24 @@ class Exemplary(metaclass=PoolMeta):
 
         return [('id', 'in' if value else 'not in', query)]
 
+class QuarantineZone(ModelSQL, ModelView):
+    'Quarantine Zone'
+
+    __name__ = 'library.quarantine_zone'
+
+    exemplary = fields.Many2One('library.book.exemplary', 'Exemplary',
+                                help='Exemplary being in quarantine zone',
+                                required=True)
+    start_date = fields.Date('Start Date', help='Beginning of quarantine',
+                             domain=[('start_date', '>=', Date())],
+                             required=True)
+    end_date = fields.Function(
+        fields.Date('End Date', help='End of quarantine'),
+        'getter_end_date')
     
+    def getter_end_date(self, name):
+        return self.start_date + datetime.timedelta(days=7)
+
 # class Bookshelf(ModelSQL, ModelView):
 #     'Bookshelf'
 

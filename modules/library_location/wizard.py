@@ -1,6 +1,6 @@
 import datetime
 
-from trytond.pool import Pool
+from trytond.pool import Pool, PoolMeta
 from trytond.pyson import Eval, PYSONEncoder
 from trytond.transaction import Transaction
 from trytond.model import ModelView, fields
@@ -11,7 +11,10 @@ __all__ = [
     'PutInBookshelf',
     'PutInBookshelfParameters',
     'PutInStorageBookshelf',
-    'PutInStorageBookshelfParameters'
+    'PutInStorageBookshelfParameters',
+    'CreateExemplaries',
+    'CreateExemplariesParameters',
+    'Return'
     ]
 
 
@@ -103,3 +106,54 @@ class PutInStorageParameters(ModelView):
 
     exemplaries = fields.Many2Many('library.book.exemplary', None, None,
         'Exemplaries', required=True)
+    
+class CreateExemplaries(metaclass=PoolMeta):
+    'Create Exemplaries'
+    __name__ = 'library.book.create_exemplaries'
+    
+    def transition_create_exemplaries(self):
+        res = super().transition_create_exemplaries()
+
+        Exemplary = Pool().get('library.book.exemplary')
+
+        created_exemplaries = self.parameters.exemplaries
+        to_bookshelf = created_exemplaries[self.parameters.nb_to_put_in_storage:]
+
+        Exemplary.write(list(to_bookshelf), {'bookshelf': self.parameters.target_bookshelf.id})
+
+        return res
+        
+
+class CreateExemplariesParameters(metaclass=PoolMeta):
+    __name__ = 'library.book.create_exemplaries.parameters'
+
+    target_bookshelf = fields.Many2One('library.floor.room.bookshelf', 'Target Bookshelf',
+                                       help='The bookshelf the exemplaries will be stored in',
+                                       required=True)
+    
+    nb_to_put_in_storage = fields.Integer('Nb to put in storage', help='Number of exemplaries to put in storage',
+                                          required=True,
+                                          depends=['number_of_exemplaries'],
+                                          domain=[('nb_to_put_in_storage', '>=', 0),
+                                                  ('nb_to_put_in_storage', '<=', Eval('number_of_exemplaries'))])
+    
+class Return(metaclass=PoolMeta):
+    __name__ = 'library.user.return'
+    
+    def transition_return_(self):
+        res = super().transition_return_()
+
+        QuanrantineZone = Pool().get('library.quarantine_zone')
+        returned_exemplaries_ids = [c.exemplary.id for c in
+                                                 list(self.select_checkouts.checkouts)]
+        to_create = []
+
+        for exemplary_id in returned_exemplaries_ids:
+            quanrantine_zone = QuanrantineZone()
+            quanrantine_zone.exemplary = exemplary_id
+            quanrantine_zone.start_date = datetime.date.today()
+            to_create.append(quanrantine_zone)
+        
+        QuanrantineZone.save(to_create)
+
+        return res

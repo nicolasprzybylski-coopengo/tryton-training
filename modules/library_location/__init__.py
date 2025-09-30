@@ -10,11 +10,15 @@ def register():
         library.Room,
         library.Bookshelf,
         library.Exemplary,
+        library.QuarantineZone,
         wizard.PutInBookshelfParameters,
         wizard.PutInStorageParameters,
+        wizard.CreateExemplariesParameters,
         module='library_location', type_='model')
 
     Pool.register(
         wizard.PutInBookshelf,
         wizard.PutInStorage,
+        wizard.CreateExemplaries,
+        wizard.Return,
         module='library_location', type_='wizard')
