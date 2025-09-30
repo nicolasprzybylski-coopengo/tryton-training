@@ -14,7 +14,8 @@ __all__ = [
     'PutInStorageBookshelfParameters',
     'CreateExemplaries',
     'CreateExemplariesParameters',
-    'Return'
+    'Return',
+    'BorrowSelectBooks'
     ]
 
 
@@ -136,10 +137,18 @@ class CreateExemplariesParameters(metaclass=PoolMeta):
                                           depends=['number_of_exemplaries'],
                                           domain=[('nb_to_put_in_storage', '>=', 0),
                                                   ('nb_to_put_in_storage', '<=', Eval('number_of_exemplaries'))])
-    
+
+class BorrowSelectBooks(metaclass=PoolMeta):
+    __name__ = 'library.user.borrow.select_books'
+
+    @classmethod
+    def __setup__(cls):
+        super().__setup__()
+        cls.exemplaries.domain.append(('is_in_storage', '=', False))
+
 class Return(metaclass=PoolMeta):
     __name__ = 'library.user.return'
-    
+
     def transition_return_(self):
         res = super().transition_return_()
 

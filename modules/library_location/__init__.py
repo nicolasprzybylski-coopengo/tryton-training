@@ -14,6 +14,7 @@ def register():
         wizard.PutInBookshelfParameters,
         wizard.PutInStorageParameters,
         wizard.CreateExemplariesParameters,
+        wizard.BorrowSelectBooks,
         module='library_location', type_='model')
 
     Pool.register(
