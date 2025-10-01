@@ -220,10 +220,7 @@ class Exemplary(metaclass=PoolMeta):
         return [Concat(book.title, exemplary.identifier)]
 
     @classmethod
-    def search_is_available(cls, name, clause):
-        _, operator, value = clause
-        if operator == '!=':
-            value = not value
+    def get_query_search_is_available(cls):
         pool = Pool()
         checkout = pool.get('library.user.checkout').__table__()
         exemplary = cls.__table__()
@@ -231,4 +228,17 @@ class Exemplary(metaclass=PoolMeta):
             condition=(exemplary.id == checkout.exemplary)
             ).select(exemplary.id,
             where=(checkout.return_date != Null) | (checkout.id == Null))
+        
+        return query
+    
+    @classmethod
+    def get_domain_search_is_available(cls, value):
+        query = cls.get_query_search_is_available()
         return [('id', 'in' if value else 'not in', query)]
+    
+    @classmethod
+    def search_is_available(cls, name, clause):
+        _, operator, value = clause
+        if operator == '!=':
+            value = not value
+        return cls.get_domain_search_is_available(value)

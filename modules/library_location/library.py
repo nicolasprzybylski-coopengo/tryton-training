@@ -212,10 +212,7 @@ class Exemplary(metaclass=PoolMeta):
         return result
     
     @classmethod
-    def search_is_available(cls, name, clause):
-        _, operator, value = clause
-        if operator == '!=':
-            value = not value
+    def get_query_search_is_available(cls):
         pool = Pool()
         checkout = pool.get('library.user.checkout').__table__()
         quarantine_zone = pool.get('library.quarantine_zone').__table__()
@@ -239,7 +236,12 @@ class Exemplary(metaclass=PoolMeta):
                                                             (exemplary.bookshelf == None)
                                                         )
                                                 )
-                
+        
+        return query
+    
+    @classmethod
+    def get_domain_search_is_available(cls, value):
+        query = cls.get_query_search_is_available()
         return [('id', 'not in' if value else 'in', query)]
 
 class QuarantineZone(ModelSQL, ModelView):
