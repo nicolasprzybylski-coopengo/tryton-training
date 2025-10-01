@@ -190,13 +190,18 @@ class Exemplary(metaclass=PoolMeta):
         'getter_is_available', searcher='search_is_available')
 
     @classmethod
-    def getter_is_available(cls, exemplaries, name):
+    def get_cursor_getter_is_available(cls, exemplaries):
         checkout = Pool().get('library.user.checkout').__table__()
         cursor = Transaction().connection.cursor()
-        result = {x.id: True for x in exemplaries}
         cursor.execute(*checkout.select(checkout.exemplary,
                 where=(checkout.return_date == Null)
                 & checkout.exemplary.in_([x.id for x in exemplaries])))
+        return cursor
+        
+    @classmethod
+    def getter_is_available(cls, exemplaries, name):
+        result = {x.id: True for x in exemplaries}
+        cursor = cls.get_cursor_getter_is_available(exemplaries)
         for exemplary_id, in cursor.fetchall():
             result[exemplary_id] = False
         return result

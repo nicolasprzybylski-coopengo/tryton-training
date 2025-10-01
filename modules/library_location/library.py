@@ -179,12 +179,11 @@ class Exemplary(metaclass=PoolMeta):
         return [('id', 'in' if value else 'not in', query)]
     
     @classmethod
-    def getter_is_available(cls, exemplaries, name):
+    def get_cursor_getter_is_available(cls, exemplaries):
         checkout = Pool().get('library.user.checkout').__table__()
         quarantine_zone = Pool().get('library.quarantine_zone').__table__()
         exemplary = cls.__table__()
         cursor = Transaction().connection.cursor()
-        result = {x.id: True for x in exemplaries}
         cursor.execute(*exemplary.join(checkout, 'LEFT OUTER',
                                        condition=(checkout.exemplary == exemplary.id))
                                        .join(
@@ -207,9 +206,7 @@ class Exemplary(metaclass=PoolMeta):
                                     )
                                     & exemplary.id.in_([x.id for x in exemplaries])))
         
-        for exemplary_id, in cursor.fetchall():
-            result[exemplary_id] = False
-        return result
+        return cursor
     
     @classmethod
     def get_query_search_is_available(cls):
