@@ -1,6 +1,6 @@
 import datetime
 
-from sql import Window, Literal
+from sql import Window, Literal, Null
 from sql.conditionals import Coalesce
 from sql.aggregate import Count, Max
 
@@ -115,6 +115,11 @@ class Exemplary(metaclass=PoolMeta):
         'getter_is_in_storage',
         searcher='search_is_in_storage'
     )
+    is_in_quarantine = fields.Function(
+        fields.Boolean('Is in quarantine', help='Boolean to true if the exemplary is currently in quarantine'),
+        'getter_is_in_quarantine',
+        searcher='search_is_in_quarantine'
+    )
 
     @classmethod
     def getter_is_in_storage(cls, exemplaries, name):
@@ -141,6 +146,101 @@ class Exemplary(metaclass=PoolMeta):
         query = exemplary.select(exemplary.id, where=(exemplary.bookshelf == None))
 
         return [('id', 'in' if value else 'not in', query)]
+    
+    @classmethod
+    def getter_is_in_quarantine(cls, exemplaries, name):
+        quarantine_zone = Pool().get('library.quarantine_zone').__table__()
+        result = {e.id: False for e in exemplaries}
+        cursor = Transaction().connection.cursor()
+
+        cursor.execute(*quarantine_zone.select(
+            quarantine_zone.id, quarantine_zone.exemplary,
+            where=(quarantine_zone.exemplary.in_([e.id for e in exemplaries])
+                   & (quarantine_zone.start_date > (datetime.date.today() - datetime.timedelta(days=7))))
+            
+        ))
+
+        for _, exemplary_id in cursor.fetchall():
+            result[exemplary_id] = True
+
+        return result
+    
+    @classmethod
+    def search_is_in_quarantine(cls, name, clause):
+        _, operator, value = clause
+        if operator == '!=':
+            value = not value
+        quarantine_zone = Pool().get('library.quarantine_zone').__table__()
+
+        query = quarantine_zone.select(
+            quarantine_zone.exemplary,
+            where=(quarantine_zone.start_date > (datetime.date.today() - datetime.timedelta(days=7))))
+            
+        return [('id', 'in' if value else 'not in', query)]
+    
+    @classmethod
+    def getter_is_available(cls, exemplaries, name):
+        checkout = Pool().get('library.user.checkout').__table__()
+        quarantine_zone = Pool().get('library.quarantine_zone').__table__()
+        exemplary = cls.__table__()
+        cursor = Transaction().connection.cursor()
+        result = {x.id: True for x in exemplaries}
+        cursor.execute(*exemplary.join(checkout, 'LEFT OUTER',
+                                       condition=(checkout.exemplary == exemplary.id))
+                                       .join(
+                                           quarantine_zone, 'LEFT OUTER',
+                                           condition=(quarantine_zone.exemplary == exemplary.id)
+                                       )
+                       .select(exemplary.id,
+                               where=(
+                                        (
+                                            (checkout.return_date == Null)
+                                            & 
+                                            (checkout.id != Null)
+                                        ) |
+                                        (
+                                            (quarantine_zone.start_date > (datetime.date.today() - datetime.timedelta(days=7)))
+                                            &
+                                            (quarantine_zone.id != Null)
+                                        ) |
+                                        (exemplary.bookshelf == None)
+                                    )
+                                    & exemplary.id.in_([x.id for x in exemplaries])))
+        
+        for exemplary_id, in cursor.fetchall():
+            result[exemplary_id] = False
+        return result
+    
+    @classmethod
+    def search_is_available(cls, name, clause):
+        _, operator, value = clause
+        if operator == '!=':
+            value = not value
+        pool = Pool()
+        checkout = pool.get('library.user.checkout').__table__()
+        quarantine_zone = pool.get('library.quarantine_zone').__table__()
+        exemplary = cls.__table__()
+        query = exemplary.join(checkout, 'LEFT OUTER',
+                                       condition=(checkout.exemplary == exemplary.id)).join(
+                                           quarantine_zone, 'LEFT OUTER',
+                                           condition=(quarantine_zone.exemplary == exemplary.id)
+                                       ).select(exemplary.id,
+                                                where=(
+                                                            (
+                                                                (checkout.return_date == Null)
+                                                                & 
+                                                                (checkout.id != Null)
+                                                            ) |
+                                                            (
+                                                                (quarantine_zone.start_date > (datetime.date.today() - datetime.timedelta(days=7)))
+                                                                &
+                                                                (quarantine_zone.id != Null)
+                                                            ) |
+                                                            (exemplary.bookshelf == None)
+                                                        )
+                                                )
+                
+        return [('id', 'not in' if value else 'in', query)]
 
 class QuarantineZone(ModelSQL, ModelView):
     'Quarantine Zone'
@@ -151,14 +251,26 @@ class QuarantineZone(ModelSQL, ModelView):
                                 help='Exemplary being in quarantine zone',
                                 required=True)
     start_date = fields.Date('Start Date', help='Beginning of quarantine',
-                             domain=[('start_date', '>=', Date())],
+                             #domain=[('start_date', '>=', Date())],
                              required=True)
     end_date = fields.Function(
         fields.Date('End Date', help='End of quarantine'),
-        'getter_end_date')
+        'getter_end_date',
+        searcher='search_end_date')
     
     def getter_end_date(self, name):
         return self.start_date + datetime.timedelta(days=7)
+    
+    @classmethod
+    def search_end_date(cls, name, clause):
+        _, operator, value = clause
+
+        if isinstance(value, datetime.date):
+            value = value - datetime.timedelta(days=7)
+        elif isinstance(value, (list, tuple)):
+            value = [(x - datetime.timedelta(days=7) if x else x) for x in value]
+
+        return [('start_date', operator, value)]
 
 # class Bookshelf(ModelSQL, ModelView):
 #     'Bookshelf'

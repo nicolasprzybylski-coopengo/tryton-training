@@ -4,4 +4,10 @@
         <label name="bookshelf"/>
         <field name="bookshelf"/>
     </xpath>
+    <xpath expr="/form/field[@name='is_available']" position="after">
+        <label name="is_in_storage"/>
+        <field name="is_in_storage"/>
+        <label name="is_in_quarantine"/>
+        <field name="is_in_quarantine"/>
+    </xpath>
 </data>

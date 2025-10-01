@@ -144,7 +144,8 @@ class BorrowSelectBooks(metaclass=PoolMeta):
     @classmethod
     def __setup__(cls):
         super().__setup__()
-        cls.exemplaries.domain.append(('is_in_storage', '=', False))
+        cls.exemplaries.domain += [('is_in_storage', '=', False),
+                                      ('is_in_quarantine', '=', False)]
 
 class Return(metaclass=PoolMeta):
     __name__ = 'library.user.return'
