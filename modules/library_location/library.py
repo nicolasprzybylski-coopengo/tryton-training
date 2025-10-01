@@ -16,6 +16,7 @@ __all__ = [
     'Room',
     'Bookshelf',
     'Exemplary',
+    'Book',
     'QuarantineZone'
     ]
 
@@ -45,6 +46,7 @@ class Floor(ModelSQL, ModelView):
             result[floor_id] = count
 
         return result
+    
 
 class Room(ModelSQL, ModelView):
     'Room'
@@ -74,6 +76,7 @@ class Room(ModelSQL, ModelView):
             result[room_id] = count
 
         return result
+    
 
 class Bookshelf(ModelSQL, ModelView):
     'Bookshelf'
@@ -104,6 +107,38 @@ class Bookshelf(ModelSQL, ModelView):
             result[bookshelf_id] = count
 
         return result
+    
+    
+class QuarantineZone(ModelSQL, ModelView):
+    'Quarantine Zone'
+
+    __name__ = 'library.quarantine_zone'
+
+    exemplary = fields.Many2One('library.book.exemplary', 'Exemplary',
+                                help='Exemplary being in quarantine zone',
+                                required=True)
+    start_date = fields.Date('Start Date', help='Beginning of quarantine',
+                             domain=[('start_date', '>=', Date())],
+                             required=True)
+    end_date = fields.Function(
+        fields.Date('End Date', help='End of quarantine'),
+        'getter_end_date',
+        searcher='search_end_date')
+    
+    def getter_end_date(self, name):
+        return self.start_date + datetime.timedelta(days=7)
+    
+    @classmethod
+    def search_end_date(cls, name, clause):
+        _, operator, value = clause
+
+        if isinstance(value, datetime.date):
+            value = value - datetime.timedelta(days=7)
+        elif isinstance(value, (list, tuple)):
+            value = [(x - datetime.timedelta(days=7) if x else x) for x in value]
+
+        return [('start_date', operator, value)]
+    
     
 class Exemplary(metaclass=PoolMeta):
     __name__ = 'library.book.exemplary'
@@ -240,36 +275,54 @@ class Exemplary(metaclass=PoolMeta):
     def get_domain_search_is_available(cls, value):
         query = cls.get_query_search_is_available()
         return [('id', 'not in' if value else 'in', query)]
-
-class QuarantineZone(ModelSQL, ModelView):
-    'Quarantine Zone'
-
-    __name__ = 'library.quarantine_zone'
-
-    exemplary = fields.Many2One('library.book.exemplary', 'Exemplary',
-                                help='Exemplary being in quarantine zone',
-                                required=True)
-    start_date = fields.Date('Start Date', help='Beginning of quarantine',
-                             #domain=[('start_date', '>=', Date())],
-                             required=True)
-    end_date = fields.Function(
-        fields.Date('End Date', help='End of quarantine'),
-        'getter_end_date',
-        searcher='search_end_date')
     
-    def getter_end_date(self, name):
-        return self.start_date + datetime.timedelta(days=7)
-    
+
+class Book(metaclass=PoolMeta):
+    __name__ = 'library.book'
+
     @classmethod
-    def search_end_date(cls, name, clause):
-        _, operator, value = clause
-
-        if isinstance(value, datetime.date):
-            value = value - datetime.timedelta(days=7)
-        elif isinstance(value, (list, tuple)):
-            value = [(x - datetime.timedelta(days=7) if x else x) for x in value]
-
-        return [('start_date', operator, value)]
+    def getter_is_available(cls, books, name):
+        pool = Pool()
+        checkout = pool.get('library.user.checkout').__table__()
+        exemplary = pool.get('library.book.exemplary').__table__()
+        quarantine_zone = pool.get('library.quarantine_zone').__table__()
+        book = cls.__table__()
+        result = {x.id: False for x in books}
+        cursor = Transaction().connection.cursor()
+        subquery = exemplary.join(checkout, 'LEFT OUTER',
+                                       condition=(checkout.exemplary == exemplary.id)
+                                       ).join(
+                                           quarantine_zone, 'LEFT OUTER',
+                                           condition=(quarantine_zone.exemplary == exemplary.id)
+                                       ).select(exemplary.id,
+                                                distinct=True,
+                                                where=(
+                                                            (
+                                                                (checkout.return_date == Null)
+                                                                & 
+                                                                (checkout.id != Null)
+                                                            ) |
+                                                            (
+                                                                (quarantine_zone.start_date > (datetime.date.today() - datetime.timedelta(days=7)))
+                                                                &
+                                                                (quarantine_zone.id != Null)
+                                                            ) |
+                                                            (exemplary.bookshelf == None)
+                                                        )
+                                                )
+        
+        cursor.execute(*exemplary.join(
+                book,
+                condition=(exemplary.book == book.id)
+            ).select(
+                book.id,
+                distinct=True,
+                where=~exemplary.id.in_(subquery)
+            ))
+        
+        for book_id, in cursor.fetchall():
+            result[book_id] = True
+        return result
 
 # class Bookshelf(ModelSQL, ModelView):
 #     'Bookshelf'

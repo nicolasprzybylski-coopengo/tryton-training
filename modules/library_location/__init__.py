@@ -11,6 +11,7 @@ def register():
         library.Bookshelf,
         library.Exemplary,
         library.QuarantineZone,
+        library.Book,
         wizard.PutInBookshelfParameters,
         wizard.PutInStorageParameters,
         wizard.CreateExemplariesParameters,
