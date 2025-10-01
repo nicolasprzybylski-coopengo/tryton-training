@@ -281,13 +281,12 @@ class Book(metaclass=PoolMeta):
     __name__ = 'library.book'
 
     @classmethod
-    def getter_is_available(cls, books, name):
+    def get_cursor_getter_is_available(cls):
         pool = Pool()
         checkout = pool.get('library.user.checkout').__table__()
         exemplary = pool.get('library.book.exemplary').__table__()
         quarantine_zone = pool.get('library.quarantine_zone').__table__()
         book = cls.__table__()
-        result = {x.id: False for x in books}
         cursor = Transaction().connection.cursor()
         subquery = exemplary.join(checkout, 'LEFT OUTER',
                                        condition=(checkout.exemplary == exemplary.id)
@@ -318,11 +317,9 @@ class Book(metaclass=PoolMeta):
                 book.id,
                 distinct=True,
                 where=~exemplary.id.in_(subquery)
-            ))
-        
-        for book_id, in cursor.fetchall():
-            result[book_id] = True
-        return result
+            ))  
+
+        return cursor
 
 # class Bookshelf(ModelSQL, ModelView):
 #     'Bookshelf'

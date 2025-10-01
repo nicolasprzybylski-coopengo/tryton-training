@@ -7,6 +7,7 @@ from trytond.model import ModelView, fields
 from trytond.wizard import Wizard, StateView, StateTransition, StateAction
 from trytond.wizard import Button
 
+import uuid
 __all__ = [
     'PutInBookshelf',
     'PutInBookshelfParameters',
@@ -73,7 +74,8 @@ class PutInStorage(Wizard):
 
     __name__ = 'library.book.exemplary.put_in_storage'
 
-    start_state = 'parameters'
+    start_state = 'check_if_already_in_storage'
+    check_if_already_in_storage = StateTransition()
     parameters = StateView(
         'library.book.exemplary.put_in_storage.parameters',
         'library_location.exemplary_put_in_storage_view_form', [
@@ -83,15 +85,40 @@ class PutInStorage(Wizard):
     )
     put_in = StateTransition()
 
+    @classmethod
+    def __setup__(cls):
+        super().__setup__()
+        cls._error_messages.update({
+                'already_in_storage': 'Some exemplaries are already in the storage : %(exemplaries)s'
+                })
+
     def default_parameters(self, name):
         Exemplary = Pool().get('library.book.exemplary')
         exemplaries = Exemplary.browse(
                 Transaction().context.get('active_ids'))
 
         return {
-            'exemplaries': [e.id for e in exemplaries]
+            'exemplaries': [e.id for e in exemplaries if e.bookshelf != None]
         }
     
+    def transition_check_if_already_in_storage(self):
+        Exemplary = Pool().get('library.book.exemplary')
+        exemplaries = Exemplary.browse(
+                Transaction().context.get('active_ids'))
+        
+        alrady_in_storage = [e.identifier for e in exemplaries if e.bookshelf == None]
+
+        if alrady_in_storage:
+            self.raise_user_warning(
+                ', '.join(alrady_in_storage),
+                'already_in_storage',
+                {
+                    'exemplaries' : ', '.join(alrady_in_storage)
+                }
+            )
+
+        return 'parameters'
+
     def transition_put_in(self):
         Exemplary = Pool().get('library.book.exemplary')
 
@@ -106,7 +133,9 @@ class PutInStorageParameters(ModelView):
     __name__ = 'library.book.exemplary.put_in_storage.parameters'
 
     exemplaries = fields.Many2Many('library.book.exemplary', None, None,
-        'Exemplaries', required=True)
+        'Exemplaries', required=True,
+        domain = [('bookshelf', "!=", None)])
+
     
 class CreateExemplaries(metaclass=PoolMeta):
     'Create Exemplaries'

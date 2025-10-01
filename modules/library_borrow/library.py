@@ -144,12 +144,11 @@ class Book(metaclass=PoolMeta):
         'getter_is_available', searcher='search_is_available')
 
     @classmethod
-    def getter_is_available(cls, books, name):
+    def get_cursor_getter_is_available(cls):
         pool = Pool()
         checkout = pool.get('library.user.checkout').__table__()
         exemplary = pool.get('library.book.exemplary').__table__()
         book = cls.__table__()
-        result = {x.id: False for x in books}
         cursor = Transaction().connection.cursor()
         cursor.execute(*book.join(exemplary,
                 condition=(exemplary.book == book.id)
@@ -157,6 +156,12 @@ class Book(metaclass=PoolMeta):
                 condition=(exemplary.id == checkout.exemplary)
                 ).select(book.id,
                 where=(checkout.return_date != Null) | (checkout.id == Null)))
+        return cursor
+    
+    @classmethod
+    def getter_is_available(cls, books, name):
+        result = {x.id: False for x in books}
+        cursor = cls.get_cursor_getter_is_available()
         for book_id, in cursor.fetchall():
             result[book_id] = True
         return result
