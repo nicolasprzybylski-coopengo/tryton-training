@@ -116,10 +116,12 @@ class QuarantineZone(ModelSQL, ModelView):
 
     exemplary = fields.Many2One('library.book.exemplary', 'Exemplary',
                                 help='Exemplary being in quarantine zone',
-                                required=True)
+                                required=True,
+                                readonly=True)
     start_date = fields.Date('Start Date', help='Beginning of quarantine',
                              domain=[('start_date', '>=', Date())],
-                             required=True)
+                             required=True,
+                             readonly=True)
     end_date = fields.Function(
         fields.Date('End Date', help='End of quarantine'),
         'getter_end_date',

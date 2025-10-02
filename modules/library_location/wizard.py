@@ -7,7 +7,7 @@ from trytond.model import ModelView, fields
 from trytond.wizard import Wizard, StateView, StateTransition, StateAction
 from trytond.wizard import Button
 
-import uuid
+
 __all__ = [
     'PutInBookshelf',
     'PutInBookshelfParameters',
@@ -200,11 +200,11 @@ class CreateExemplariesParameters(metaclass=PoolMeta):
 class BorrowSelectBooks(metaclass=PoolMeta):
     __name__ = 'library.user.borrow.select_books'
 
-    @classmethod
-    def __setup__(cls):
-        super().__setup__()
-        cls.exemplaries.domain += [('is_in_storage', '=', False),
-                                      ('is_in_quarantine', '=', False)]
+    # @classmethod
+    # def __setup__(cls):
+    #     super().__setup__()
+    #     cls.exemplaries.domain += [('is_in_storage', '=', False),
+    #                                   ('is_in_quarantine', '=', False)]
 
 class Return(metaclass=PoolMeta):
     __name__ = 'library.user.return'
