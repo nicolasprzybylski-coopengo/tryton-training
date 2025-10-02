@@ -280,15 +280,31 @@ class Exemplary(metaclass=PoolMeta):
 
     @classmethod
     def getter_is_in_storage(cls, exemplaries, name):
-        exemplary = Pool().get('library.book.exemplary').__table__()
+        pool = Pool()
+        checkout = pool.get('library.user.checkout').__table__()
+        quarantine_zone = pool.get('library.quarantine_zone').__table__()
+        exemplary = cls.__table__()
         result = {e.id: False for e in exemplaries}
         cursor = Transaction().connection.cursor()
+                
+        cursor.execute(*exemplary.join(
+            checkout, 'LEFT OUTER',
+            condition=(checkout.exemplary == exemplary.id))
+            .join(
+                quarantine_zone, 'LEFT OUTER',
+                condition=(quarantine_zone.exemplary == exemplary.id)
+            )
+            .select(
+                exemplary.id,
+                where=(
+                    ((checkout.id == Null )| (checkout.return_date != Null)) &
+                    ((quarantine_zone.id == Null) | (quarantine_zone.start_date <= (datetime.date.today() - datetime.timedelta(days=7)))) &
+                    (exemplary.bookshelf == Null) &
+                    (exemplary.id.in_([e.id for e in exemplaries]))
+                )
+            ))
         
-        cursor.execute(*exemplary.select(exemplary.id, exemplary.bookshelf,
-                where=((exemplary.id.in_([e.id for e in exemplaries])) &
-                       (exemplary.bookshelf == None))))
-        
-        for exemplary_id, _ in cursor.fetchall():
+        for exemplary_id, in cursor.fetchall():
             result[exemplary_id] = True
 
         return result
@@ -297,11 +313,26 @@ class Exemplary(metaclass=PoolMeta):
     def search_is_in_storage(cls, name, clause):
         _, operator, value = clause
         if operator == '!=':
-            value = not value
-        exemplary = Pool().get('library.book.exemplary').__table__()
-
-        query = exemplary.select(exemplary.id, where=(exemplary.bookshelf == None))
-
+            value = not value       
+    
+        pool = Pool()
+        checkout = pool.get('library.user.checkout').__table__()
+        quarantine_zone = pool.get('library.quarantine_zone').__table__()
+        exemplary = cls.__table__()
+                
+        query = exemplary.join(
+            checkout, 'LEFT OUTER',
+            condition=(checkout.exemplary == exemplary.id)).join(
+                quarantine_zone, 'LEFT OUTER',
+                condition=(quarantine_zone.exemplary == exemplary.id)
+            ).select(
+                exemplary.id,
+                where=(
+                    ((checkout.id == Null )| (checkout.return_date != Null)) &
+                    ((quarantine_zone.id == Null) | (quarantine_zone.start_date <= (datetime.date.today() - datetime.timedelta(days=7)))) &
+                    (exemplary.bookshelf == Null))
+                )
+        
         return [('id', 'in' if value else 'not in', query)]
     
     @classmethod
