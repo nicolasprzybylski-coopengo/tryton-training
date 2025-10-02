@@ -284,28 +284,33 @@ class Exemplary(metaclass=PoolMeta):
         checkout = pool.get('library.user.checkout').__table__()
         quarantine_zone = pool.get('library.quarantine_zone').__table__()
         exemplary = cls.__table__()
-        result = {e.id: False for e in exemplaries}
+        result = {e.id: True for e in exemplaries}
         cursor = Transaction().connection.cursor()
-                
-        cursor.execute(*exemplary.join(
-            checkout, 'LEFT OUTER',
-            condition=(checkout.exemplary == exemplary.id))
-            .join(
-                quarantine_zone, 'LEFT OUTER',
-                condition=(quarantine_zone.exemplary == exemplary.id)
-            )
-            .select(
-                exemplary.id,
-                where=(
-                    ((checkout.id == Null )| (checkout.return_date != Null)) &
-                    ((quarantine_zone.id == Null) | (quarantine_zone.start_date <= (datetime.date.today() - datetime.timedelta(days=7)))) &
-                    (exemplary.bookshelf == Null) &
-                    (exemplary.id.in_([e.id for e in exemplaries]))
-                )
-            ))
+
+        cursor.execute(*exemplary.join(checkout, 'LEFT OUTER',
+                                condition=(checkout.exemplary == exemplary.id))
+                                .join(
+                                    quarantine_zone, 'LEFT OUTER',
+                                    condition=(quarantine_zone.exemplary == exemplary.id)
+                                )
+                .select(exemplary.id,
+                        where=(
+                                (
+                                    (checkout.return_date == Null)
+                                    & 
+                                    (checkout.id != Null)
+                                ) |
+                                (
+                                    (quarantine_zone.start_date > (datetime.date.today() - datetime.timedelta(days=7)))
+                                    &
+                                    (quarantine_zone.id != Null)
+                                ) |
+                                (exemplary.bookshelf != None)
+                            )
+                            & exemplary.id.in_([x.id for x in exemplaries])))
         
         for exemplary_id, in cursor.fetchall():
-            result[exemplary_id] = True
+            result[exemplary_id] = False
 
         return result
     
@@ -320,20 +325,27 @@ class Exemplary(metaclass=PoolMeta):
         quarantine_zone = pool.get('library.quarantine_zone').__table__()
         exemplary = cls.__table__()
                 
-        query = exemplary.join(
-            checkout, 'LEFT OUTER',
-            condition=(checkout.exemplary == exemplary.id)).join(
-                quarantine_zone, 'LEFT OUTER',
-                condition=(quarantine_zone.exemplary == exemplary.id)
-            ).select(
-                exemplary.id,
-                where=(
-                    ((checkout.id == Null )| (checkout.return_date != Null)) &
-                    ((quarantine_zone.id == Null) | (quarantine_zone.start_date <= (datetime.date.today() - datetime.timedelta(days=7)))) &
-                    (exemplary.bookshelf == Null))
-                )
+        query = exemplary.join(checkout, 'LEFT OUTER',
+                                condition=(checkout.exemplary == exemplary.id)).join(
+                                    quarantine_zone, 'LEFT OUTER',
+                                    condition=(quarantine_zone.exemplary == exemplary.id)
+                                ).select(exemplary.id,
+                        where=(
+                                (
+                                    (checkout.return_date == Null)
+                                    & 
+                                    (checkout.id != Null)
+                                ) |
+                                (
+                                    (quarantine_zone.start_date > (datetime.date.today() - datetime.timedelta(days=7)))
+                                    &
+                                    (quarantine_zone.id != Null)
+                                ) |
+                                (exemplary.bookshelf != None)
+                            )
+                        )
         
-        return [('id', 'in' if value else 'not in', query)]
+        return [('id', 'not in' if value else 'in', query)]
     
     @classmethod
     def getter_is_in_quarantine(cls, exemplaries, name):

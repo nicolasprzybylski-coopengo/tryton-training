@@ -16,7 +16,6 @@ __all__ = [
     'CreateExemplaries',
     'CreateExemplariesParameters'
     'Borrow',
-    'BorrowSelectBooks',
     'Return'
     ]
 
@@ -204,14 +203,6 @@ class CreateExemplariesParameters(metaclass=PoolMeta):
                                           domain=[('nb_to_put_in_storage', '>=', 0),
                                                   ('nb_to_put_in_storage', '<=', Eval('number_of_exemplaries'))])
 
-class BorrowSelectBooks(metaclass=PoolMeta):
-    __name__ = 'library.user.borrow.select_books'
-
-    # @classmethod
-    # def __setup__(cls):
-    #     super().__setup__()
-    #     cls.exemplaries.domain += [('is_in_storage', '=', False),
-    #                                   ('is_in_quarantine', '=', False)]
 
 class Borrow(metaclass=PoolMeta):
     __name__ = 'library.user.borrow'
