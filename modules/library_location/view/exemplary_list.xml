@@ -1,6 +1,11 @@
 <?xml version="1.0"?>
 <data>
     <xpath expr="/tree/field[@name='rec_name']" position="after">
-        <field name="bookshelf"/>
+        <field name="bookshelf" expand="1"/>
+    </xpath>
+    <xpath expr="/tree/field[@name='rec_name']" position="before">
+        <field name="is_in_storage"/>
+        <field name="is_in_quarantine"/>
+        <field name="is_checked_out"/>
     </xpath>
 </data>

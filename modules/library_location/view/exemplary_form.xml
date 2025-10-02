@@ -9,5 +9,7 @@
         <field name="is_in_storage"/>
         <label name="is_in_quarantine"/>
         <field name="is_in_quarantine"/>
+        <label name="is_checked_out"/>
+        <field name="is_checked_out"/>
     </xpath>
 </data>
