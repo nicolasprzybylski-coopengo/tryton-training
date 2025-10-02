@@ -25,7 +25,8 @@ class PutInBookshelf(Wizard):
 
     __name__ = 'library.book.exemplary.put_in_bookshelf'
 
-    start_state = 'parameters'
+    start_state = 'check_eligibility'
+    check_eligibility = StateTransition()
     parameters = StateView('library.book.exemplary.put_in_bookshelf.parameters',
     'library_location.put_in_bookshelf_parameters_view_form', [
         Button('Cancel', 'end', 'tryton-cancel'),
@@ -47,8 +48,34 @@ class PutInBookshelf(Wizard):
                 Transaction().context.get('active_ids'))
 
         return {
-            'exemplaries': [e.id for e in exemplaries]
+            'exemplaries': [e.id for e in exemplaries if not (e.is_in_quarantine or e.is_checked_out)]
         }
+    
+    @classmethod
+    def __setup__(cls):
+        super().__setup__()
+        cls._error_messages.update({
+                'ineligible': 'Some selected exemplaries are either in quarantine or currenty chcked out '
+                'and therefore cannot be moved to the selected bookshelf :\n- %(exemplaries)s'
+                })
+    
+    def transition_check_eligibility(self):
+        Exemplary = Pool().get('library.book.exemplary')
+        exemplaries = Exemplary.browse(
+                Transaction().context.get('active_ids'))
+        
+        ineligible = [e.rec_name for e in exemplaries if (e.is_in_quarantine or e.is_checked_out)]
+
+        if ineligible:
+            self.raise_user_warning(
+                ', '.join(ineligible),
+                'ineligible',
+                {
+                    'exemplaries' : '\n- '.join(ineligible)
+                }
+            )
+
+        return 'parameters'
     
     def transition_put(self):
         Exemplary = Pool().get('library.book.exemplary')
@@ -65,7 +92,9 @@ class PutInBookshelfParameters(ModelView):
     __name__ = 'library.book.exemplary.put_in_bookshelf.parameters'
 
     exemplaries = fields.Many2Many('library.book.exemplary', None, None,
-        'Exemplaries', required=True)
+        'Exemplaries', required=True,
+        depends = ['is_in_quarantine', 'is_checked_out'],
+        domain = [('is_in_quarantine' ,'=', False), ('is_checked_out', '=', False)])
     target_bookshelf = fields.Many2One('library.floor.room.bookshelf', 'Target Bookshelf',
                                        required=True)
     
@@ -89,7 +118,7 @@ class PutInStorage(Wizard):
     def __setup__(cls):
         super().__setup__()
         cls._error_messages.update({
-                'ineligible': 'Some are not available and therefore cannot be moved to storage :\n- %(exemplaries)s'
+                'ineligible': 'Some selected exemplaries are not available and therefore cannot be moved to storage :\n- %(exemplaries)s'
                 })
 
     def default_parameters(self, name):
@@ -98,7 +127,7 @@ class PutInStorage(Wizard):
                 Transaction().context.get('active_ids'))
 
         return {
-            'exemplaries': [e.id for e in exemplaries if e.is_available == True]
+            'exemplaries': [e.id for e in exemplaries if e.is_available]
         }
     
     def transition_check_eligibility(self):
@@ -106,7 +135,7 @@ class PutInStorage(Wizard):
         exemplaries = Exemplary.browse(
                 Transaction().context.get('active_ids'))
         
-        ineligible = [e.rec_name for e in exemplaries if e.is_available == False]
+        ineligible = [e.rec_name for e in exemplaries if e.is_available]
 
         if ineligible:
             self.raise_user_warning(
@@ -134,7 +163,8 @@ class PutInStorageParameters(ModelView):
 
     exemplaries = fields.Many2Many('library.book.exemplary', None, None,
         'Exemplaries', required=True,
-        domain = [('is_available', "=", True)])
+        domain = [('is_available', "=", True)],
+        depends = ['is_available'])
 
     
 class CreateExemplaries(metaclass=PoolMeta):
