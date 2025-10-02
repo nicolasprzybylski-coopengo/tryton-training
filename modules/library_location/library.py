@@ -20,6 +20,46 @@ __all__ = [
     'QuarantineZone'
     ]
 
+class MixinExemplaryState():
+    @classmethod
+    def get_sql_where_exemplary_is_in_quarantine(cls, quarantine_zone):
+        return ((quarantine_zone.start_date > (datetime.date.today() - datetime.timedelta(days=7))) 
+                & (quarantine_zone.id != Null))
+    
+    @classmethod
+    def get_sql_where_exemplary_is_checked_out(cls, checkout):
+        return ((checkout.return_date == Null)
+                & (checkout.id != Null))
+    
+    @classmethod
+    def get_sql_where_exemplary_is_in_bookshelf(cls, exemplary, is_in=True):
+        return (exemplary.bookshelf != Null) if is_in else (exemplary.bookshelf == Null)
+    
+    @classmethod
+    def get_sql_query_for_field_getter(cls, in_bookshelf, id_filter=None):
+        pool = Pool()
+        checkout = pool.get('library.user.checkout').__table__()
+        exemplary = pool.get('library.book.exemplary').__table__()
+        quarantine_zone = pool.get('library.quarantine_zone').__table__()
+    
+        where = (cls.get_sql_where_exemplary_is_checked_out(checkout) |
+                cls.get_sql_where_exemplary_is_in_quarantine(quarantine_zone) |
+                cls.get_sql_where_exemplary_is_in_bookshelf(exemplary, is_in=in_bookshelf)
+                )
+            
+        if id_filter:
+            where &= exemplary.id.in_(id_filter)
+
+        return exemplary.join(
+                checkout,
+                'LEFT OUTER',
+                condition=(checkout.exemplary == exemplary.id)
+            ).join(
+                quarantine_zone,
+                'LEFT OUTER',
+                condition=(quarantine_zone.exemplary == exemplary.id)
+            ).select(exemplary.id, where=where)
+
 class Floor(ModelSQL, ModelView):
     'Floor'
 
@@ -213,39 +253,16 @@ class QuarantineZone(ModelSQL, ModelView):
 
         return [('start_date', operator, value)]
     
-class Book(metaclass=PoolMeta):
+class Book(MixinExemplaryState, metaclass=PoolMeta):
     __name__ = 'library.book'
 
     @classmethod
     def get_cursor_getter_is_available(cls):
         pool = Pool()
-        checkout = pool.get('library.user.checkout').__table__()
         exemplary = pool.get('library.book.exemplary').__table__()
-        quarantine_zone = pool.get('library.quarantine_zone').__table__()
         book = cls.__table__()
         cursor = Transaction().connection.cursor()
-        subquery = exemplary.join(checkout, 'LEFT OUTER',
-                                       condition=(checkout.exemplary == exemplary.id)
-                                       ).join(
-                                           quarantine_zone, 'LEFT OUTER',
-                                           condition=(quarantine_zone.exemplary == exemplary.id)
-                                       ).select(exemplary.id,
-                                                distinct=True,
-                                                where=(
-                                                            (
-                                                                (checkout.return_date == Null)
-                                                                & 
-                                                                (checkout.id != Null)
-                                                            ) |
-                                                            (
-                                                                (quarantine_zone.start_date > (datetime.date.today() - datetime.timedelta(days=7)))
-                                                                &
-                                                                (quarantine_zone.id != Null)
-                                                            ) |
-                                                            (exemplary.bookshelf == None)
-                                                        )
-                                                )
-        
+        subquery = cls.get_sql_query_for_field_getter(in_bookshelf=False)
         cursor.execute(*exemplary.join(
                 book,
                 condition=(exemplary.book == book.id)
@@ -253,11 +270,10 @@ class Book(metaclass=PoolMeta):
                 book.id,
                 distinct=True,
                 where=~exemplary.id.in_(subquery)
-            ))  
-
+            ))
         return cursor
 
-class Exemplary(metaclass=PoolMeta):
+class Exemplary(MixinExemplaryState, metaclass=PoolMeta):
     __name__ = 'library.book.exemplary'
 
     bookshelf = fields.Many2One('library.floor.room.bookshelf', 'Bookshelf',
@@ -279,36 +295,29 @@ class Exemplary(metaclass=PoolMeta):
     )
 
     @classmethod
+    def get_cursor_getter_is_available(cls, exemplaries):
+        cursor = Transaction().connection.cursor()
+        query = cls.get_sql_query_for_field_getter(in_bookshelf=False,
+                                                    id_filter=[x.id for x in exemplaries])
+        cursor.execute(*query)
+        return cursor
+    
+    @classmethod
+    def get_query_search_is_available(cls):
+        return cls.get_sql_query_for_field_getter(in_bookshelf=False)
+    
+    @classmethod
+    def get_domain_search_is_available(cls, value):
+        query = cls.get_query_search_is_available()
+        return [('id', 'not in' if value else 'in', query)]
+
+    @classmethod
     def getter_is_in_storage(cls, exemplaries, name):
-        pool = Pool()
-        checkout = pool.get('library.user.checkout').__table__()
-        quarantine_zone = pool.get('library.quarantine_zone').__table__()
-        exemplary = cls.__table__()
         result = {e.id: True for e in exemplaries}
         cursor = Transaction().connection.cursor()
-
-        cursor.execute(*exemplary.join(checkout, 'LEFT OUTER',
-                                condition=(checkout.exemplary == exemplary.id))
-                                .join(
-                                    quarantine_zone, 'LEFT OUTER',
-                                    condition=(quarantine_zone.exemplary == exemplary.id)
-                                )
-                .select(exemplary.id,
-                        where=(
-                                (
-                                    (checkout.return_date == Null)
-                                    & 
-                                    (checkout.id != Null)
-                                ) |
-                                (
-                                    (quarantine_zone.start_date > (datetime.date.today() - datetime.timedelta(days=7)))
-                                    &
-                                    (quarantine_zone.id != Null)
-                                ) |
-                                (exemplary.bookshelf != None)
-                            )
-                            & exemplary.id.in_([x.id for x in exemplaries])))
-        
+        query = cls.get_sql_query_for_field_getter(in_bookshelf=True,
+                                                    id_filter=[x.id for x in exemplaries])
+        cursor.execute(*query)
         for exemplary_id, in cursor.fetchall():
             result[exemplary_id] = False
 
@@ -319,31 +328,8 @@ class Exemplary(metaclass=PoolMeta):
         _, operator, value = clause
         if operator == '!=':
             value = not value       
-    
-        pool = Pool()
-        checkout = pool.get('library.user.checkout').__table__()
-        quarantine_zone = pool.get('library.quarantine_zone').__table__()
-        exemplary = cls.__table__()
                 
-        query = exemplary.join(checkout, 'LEFT OUTER',
-                                condition=(checkout.exemplary == exemplary.id)).join(
-                                    quarantine_zone, 'LEFT OUTER',
-                                    condition=(quarantine_zone.exemplary == exemplary.id)
-                                ).select(exemplary.id,
-                        where=(
-                                (
-                                    (checkout.return_date == Null)
-                                    & 
-                                    (checkout.id != Null)
-                                ) |
-                                (
-                                    (quarantine_zone.start_date > (datetime.date.today() - datetime.timedelta(days=7)))
-                                    &
-                                    (quarantine_zone.id != Null)
-                                ) |
-                                (exemplary.bookshelf != None)
-                            )
-                        )
+        query = cls.get_sql_query_for_field_getter(in_bookshelf=True)
         
         return [('id', 'not in' if value else 'in', query)]
     
@@ -354,13 +340,13 @@ class Exemplary(metaclass=PoolMeta):
         cursor = Transaction().connection.cursor()
 
         cursor.execute(*quarantine_zone.select(
-            quarantine_zone.id, quarantine_zone.exemplary,
+            quarantine_zone.exemplary,
             where=(quarantine_zone.exemplary.in_([e.id for e in exemplaries])
-                   & (quarantine_zone.start_date > (datetime.date.today() - datetime.timedelta(days=7))))
+                   & cls.get_sql_where_exemplary_is_in_quarantine(quarantine_zone))
             
         ))
 
-        for _, exemplary_id in cursor.fetchall():
+        for exemplary_id, in cursor.fetchall():
             result[exemplary_id] = True
 
         return result
@@ -374,7 +360,7 @@ class Exemplary(metaclass=PoolMeta):
 
         query = quarantine_zone.select(
             quarantine_zone.exemplary,
-            where=(quarantine_zone.start_date > (datetime.date.today() - datetime.timedelta(days=7))))
+            where=cls.get_sql_where_exemplary_is_in_quarantine(quarantine_zone))
             
         return [('id', 'in' if value else 'not in', query)]
     
@@ -384,7 +370,7 @@ class Exemplary(metaclass=PoolMeta):
         checkout = Pool().get('library.user.checkout').__table__()
         cursor = Transaction().connection.cursor()
         cursor.execute(*checkout.select(checkout.exemplary,
-                where=(checkout.return_date == Null)
+                where=cls.get_sql_where_exemplary_is_checked_out(checkout)
                 & checkout.exemplary.in_([x.id for x in exemplaries])))
 
         for exemplary_id, in cursor.fetchall():
@@ -401,70 +387,6 @@ class Exemplary(metaclass=PoolMeta):
         checkout = pool.get('library.user.checkout').__table__()
 
         query = checkout.select(checkout.exemplary,
-                where=(checkout.return_date == Null))
+                where=cls.get_sql_where_exemplary_is_checked_out(checkout))
 
         return [('id', 'in' if value else 'not in', query)]
-    
-    @classmethod
-    def get_cursor_getter_is_available(cls, exemplaries):
-        pool = Pool()
-        checkout = pool.get('library.user.checkout').__table__()
-        quarantine_zone = pool.get('library.quarantine_zone').__table__()
-        exemplary = cls.__table__()
-        cursor = Transaction().connection.cursor()
-        cursor.execute(*exemplary.join(checkout, 'LEFT OUTER',
-                                       condition=(checkout.exemplary == exemplary.id))
-                                       .join(
-                                           quarantine_zone, 'LEFT OUTER',
-                                           condition=(quarantine_zone.exemplary == exemplary.id)
-                                       )
-                       .select(exemplary.id,
-                               where=(
-                                        (
-                                            (checkout.return_date == Null)
-                                            & 
-                                            (checkout.id != Null)
-                                        ) |
-                                        (
-                                            (quarantine_zone.start_date > (datetime.date.today() - datetime.timedelta(days=7)))
-                                            &
-                                            (quarantine_zone.id != Null)
-                                        ) |
-                                        (exemplary.bookshelf == None)
-                                    )
-                                    & exemplary.id.in_([x.id for x in exemplaries])))
-        
-        return cursor
-    
-    @classmethod
-    def get_query_search_is_available(cls):
-        pool = Pool()
-        checkout = pool.get('library.user.checkout').__table__()
-        quarantine_zone = pool.get('library.quarantine_zone').__table__()
-        exemplary = cls.__table__()
-        query = exemplary.join(checkout, 'LEFT OUTER',
-                                       condition=(checkout.exemplary == exemplary.id)).join(
-                                           quarantine_zone, 'LEFT OUTER',
-                                           condition=(quarantine_zone.exemplary == exemplary.id)
-                                       ).select(exemplary.id,
-                                                where=(
-                                                            (
-                                                                (checkout.return_date == Null)
-                                                                & 
-                                                                (checkout.id != Null)
-                                                            ) |
-                                                            (
-                                                                (quarantine_zone.start_date > (datetime.date.today() - datetime.timedelta(days=7)))
-                                                                &
-                                                                (quarantine_zone.id != Null)
-                                                            ) |
-                                                            (exemplary.bookshelf == None)
-                                                        )
-                                                )
-        
-        return query
-    
-    @classmethod
-    def get_domain_search_is_available(cls, value):
-        query = cls.get_query_search_is_available()
-        return [('id', 'not in' if value else 'in', query)]
