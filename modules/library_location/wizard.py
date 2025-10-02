@@ -56,8 +56,9 @@ class PutInBookshelf(Wizard):
         super().__setup__()
         cls._error_messages.update({
                 'ineligible': 'Some selected exemplaries are either in quarantine or currenty chcked out '
-                'and therefore cannot be moved to the selected bookshelf :\n- %(exemplaries)s'
-                })
+                'and therefore cannot be moved to the selected bookshelf :\n- %(exemplaries)s',
+                'not_enough_space_in_bookshelf': 'There is not enough space in the bookshelf to put'
+                'the selected exemplaries'})
     
     def transition_check_eligibility(self):
         Exemplary = Pool().get('library.book.exemplary')
@@ -78,8 +79,12 @@ class PutInBookshelf(Wizard):
         return 'parameters'
     
     def transition_put(self):
+        nb_exemplaries_to_put = len(self.parameters.exemplaries)
+        
+        if nb_exemplaries_to_put > self.parameters.target_bookshelf.available_slots:
+            self.raise_user_error('not_enough_space_in_bookshelf')
+        
         Exemplary = Pool().get('library.book.exemplary')
-
         Exemplary.write(list(self.parameters.exemplaries), {
                 'bookshelf': self.parameters.target_bookshelf})
         
@@ -96,7 +101,8 @@ class PutInBookshelfParameters(ModelView):
         depends = ['is_in_quarantine', 'is_checked_out'],
         domain = [('is_in_quarantine' ,'=', False), ('is_checked_out', '=', False)])
     target_bookshelf = fields.Many2One('library.floor.room.bookshelf', 'Target Bookshelf',
-                                       required=True)
+                                       required=True,
+                                       domain=[('is_full', '=', False)])
     
 class PutInStorage(Wizard):
     'Put In Storage'
@@ -135,7 +141,7 @@ class PutInStorage(Wizard):
         exemplaries = Exemplary.browse(
                 Transaction().context.get('active_ids'))
         
-        ineligible = [e.rec_name for e in exemplaries if e.is_available]
+        ineligible = [e.rec_name for e in exemplaries if not e.is_available]
 
         if ineligible:
             self.raise_user_warning(
