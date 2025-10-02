@@ -75,7 +75,7 @@
             <field name="name">Bookshelves</field>
             <field name="res_model">library.floor.room.bookshelf</field>
         </record>
-        <!-- <record model="ir.action.act_window.domain" id="act_floor_room_bookshelf_domain_full">
+        <record model="ir.action.act_window.domain" id="act_floor_room_bookshelf_domain_full">
             <field name="name">Full</field>
             <field name="sequence" eval="10"/>
             <field name="domain" eval="[('is_full', '=', True)]" pyson="1"/>
@@ -86,7 +86,12 @@
             <field name="sequence" eval="20"/>
             <field name="domain" eval="[('is_full', '=', False)]" pyson="1"/>
             <field name="act_window" ref="act_open_floor_room_bookshelf"/>
-        </record> -->
+        </record>
+        <record model="ir.action.act_window.domain" id="act_floor_room_bookshelf_domain_all">
+            <field name="name">All</field>
+            <field name="sequence" eval="30"/>
+            <field name="act_window" ref="act_open_floor_room_bookshelf"/>
+        </record>
         <record model="ir.action.act_window.view" id="act_open_floor_room_bookshelf_view_list">
             <field name="sequence" eval="10"/>
             <field name="view" ref="floor_room_bookshelf_view_list"/>

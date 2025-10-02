@@ -1,8 +1,9 @@
 <?xml version="1.0"?>
 <tree>
+    <field name="is_full"/>
     <field name="name"/>
     <field name="room"/>
     <field name="number_of_exemplaries"/>
-    <!-- <field name="available_slots"/>
-    <field name="capacity"/> -->
+    <field name="available_slots"/>
+    <field name="capacity"/>
 </tree>

@@ -88,9 +88,21 @@ class Bookshelf(ModelSQL, ModelView):
         ondelete='CASCADE', select=True)
     exemplaries = fields.One2Many('library.book.exemplary', 'bookshelf', 'Exemplaries',
                                   readonly=True)
+    capacity = fields.Integer('Capacity', help='The maximum number of exemplaries this bookshelf'
+                'can contain', required=True)
     number_of_exemplaries= fields.Function(
         fields.Integer('Number of exemplaries', help='The number of exemplaries in this bookshelf'),
         'getter_number_of_exemplaries',
+    )
+    available_slots = fields.Function(
+        fields.Integer('Available slots', help='The number of available slots in the bookshelf'),
+        'getter_available_slots',
+    )
+    is_full = fields.Function(
+        fields.Boolean('Is full', help='True if the bookshelf is full and' \
+        'cannot contain any additional exemplary'),
+        'getter_is_full',
+        searcher='search_is_full'
     )
     
     @classmethod
@@ -107,6 +119,66 @@ class Bookshelf(ModelSQL, ModelView):
             result[bookshelf_id] = count
 
         return result
+    
+    @classmethod
+    def getter_available_slots(cls, bookshelves, name):
+        exemplary = Pool().get('library.book.exemplary').__table__()
+        bookshelf = cls.__table__()
+        result = {b.id: 0 for b in bookshelves}
+        cursor = Transaction().connection.cursor()
+
+        subquery = exemplary.select(exemplary.bookshelf, Count(exemplary.bookshelf).as_('count'),
+                where=exemplary.bookshelf.in_([b.id for b in bookshelves]),
+                group_by=[exemplary.bookshelf])
+        
+        cursor.execute(*bookshelf.join(subquery, 'LEFT OUTER', condition=(
+            bookshelf.id == subquery.bookshelf
+        )).select(bookshelf.id, (bookshelf.capacity - Coalesce(subquery.count, Literal(0)))
+                  ))
+
+        for bookshelf_id, count in cursor.fetchall():
+            result[bookshelf_id] = count
+
+        return result
+    
+    @classmethod
+    def getter_is_full(cls, bookshelves, name):
+        exemplary = Pool().get('library.book.exemplary').__table__()
+        bookshelf = cls.__table__()
+        result = {b.id: False for b in bookshelves}
+        cursor = Transaction().connection.cursor()
+
+        subquery = exemplary.select(exemplary.bookshelf, Count(exemplary.bookshelf).as_('count'),
+                where=exemplary.bookshelf.in_([b.id for b in bookshelves]),
+                group_by=[exemplary.bookshelf])
+        
+        cursor.execute(*bookshelf.join(subquery, condition=(
+            bookshelf.id == subquery.bookshelf
+        )).select(bookshelf.id, (subquery.count == bookshelf.capacity)
+                  ))
+        
+        for bookshelf_id, is_full in cursor.fetchall():
+            result[bookshelf_id] = is_full
+
+        return result
+    
+    @classmethod
+    def search_is_full(cls, name, clause):
+        _, operator, value = clause
+        if operator == '!=':
+            value = not value
+        exemplary = Pool().get('library.book.exemplary').__table__()
+        bookshelf = cls.__table__()
+
+        subquery = exemplary.select(exemplary.bookshelf, Count(exemplary.bookshelf).as_('count'),
+                group_by=[exemplary.bookshelf])
+        
+        query = bookshelf.join(subquery, condition=(
+            bookshelf.id == subquery.bookshelf
+        )).select(bookshelf.id, where=(subquery.count == bookshelf.capacity)
+                  )
+
+        return [('id', 'in' if value else 'not in', query)]
     
     
 class QuarantineZone(ModelSQL, ModelView):
@@ -353,105 +425,3 @@ class Exemplary(metaclass=PoolMeta):
     def get_domain_search_is_available(cls, value):
         query = cls.get_query_search_is_available()
         return [('id', 'not in' if value else 'in', query)]
-    
-# class Bookshelf(ModelSQL, ModelView):
-#     'Bookshelf'
-
-#     __name__ = 'library.floor.room.bookshelf'
-
-#     name = fields.Char('Name', required=True)
-#     room = fields.Many2One('library.floor.room', 'Room', required=True,
-#         ondelete='CASCADE', select=True)
-#     exemplaries = fields.One2Many('library.book.exemplary', 'bookshelf', 'Exemplaries',
-#                                   readonly=True)
-#     number_of_exemplaries= fields.Function(
-#         fields.Integer('Number of exemplaries', help='The number of exemplaries in this bookshelf'),
-#         'getter_number_of_exemplaries',
-#     )
-#     capacity = fields.Integer('Capacity', help='The maximum number of exemplaries this bookshelf'
-#                 'can contain', required=True)
-#     available_slots = fields.Function(
-#         fields.Integer('Available slots', help='The number of available slots in the bookshelf'),
-#         'getter_available_slots',
-#     )
-#     is_full = fields.Function(
-#         fields.Boolean('Is full', help='True if the bookshelf is full and' \
-#         'cannot contain any additional exemplary'),
-#         'getter_is_full',
-#         searcher='search_is_full'
-#     )
-    
-#     @classmethod
-#     def getter_number_of_exemplaries(cls, bookshelves, name):
-#         exemplary = Pool().get('library.book.exemplary').__table__()
-#         result = {b.id: 0 for b in bookshelves}
-#         cursor = Transaction().connection.cursor()
-
-#         cursor.execute(*exemplary.select(exemplary.bookshelf, Count(exemplary.bookshelf),
-#                 where=exemplary.bookshelf.in_([b.id for b in bookshelves]),
-#                 group_by=[exemplary.bookshelf]))
-        
-#         for bookshelf_id, count in cursor.fetchall():
-#             result[bookshelf_id] = count
-
-#         return result
-    
-#     @classmethod
-#     def getter_available_slots(cls, bookshelves, name):
-#         exemplary = Pool().get('library.book.exemplary').__table__()
-#         bookshelf = cls.__table__()
-#         result = {b.id: 0 for b in bookshelves}
-#         cursor = Transaction().connection.cursor()
-
-#         subquery = exemplary.select(exemplary.bookshelf, Count(exemplary.bookshelf).as_('count'),
-#                 where=exemplary.bookshelf.in_([b.id for b in bookshelves]),
-#                 group_by=[exemplary.bookshelf])
-        
-#         cursor.execute(*bookshelf.join(subquery, 'LEFT OUTER', condition=(
-#             bookshelf.id == subquery.bookshelf
-#         )).select(bookshelf.id, (bookshelf.capacity - Coalesce(subquery.count, Literal(0)))
-#                   ))
-
-#         for bookshelf_id, count in cursor.fetchall():
-#             result[bookshelf_id] = count
-
-#         return result
-    
-#     @classmethod
-#     def getter_is_full(cls, bookshelves, name):
-#         exemplary = Pool().get('library.book.exemplary').__table__()
-#         bookshelf = cls.__table__()
-#         result = {b.id: False for b in bookshelves}
-#         cursor = Transaction().connection.cursor()
-
-#         subquery = exemplary.select(exemplary.bookshelf, Count(exemplary.bookshelf).as_('count'),
-#                 where=exemplary.bookshelf.in_([b.id for b in bookshelves]),
-#                 group_by=[exemplary.bookshelf])
-        
-#         cursor.execute(*bookshelf.join(subquery, condition=(
-#             bookshelf.id == subquery.bookshelf
-#         )).select(bookshelf.id, (subquery.count == bookshelf.capacity)
-#                   ))
-        
-#         for bookshelf_id, is_full in cursor.fetchall():
-#             result[bookshelf_id] = is_full
-
-#         return result
-    
-#     @classmethod
-#     def search_is_full(cls, name, clause):
-#         _, operator, value = clause
-#         if operator == '!=':
-#             value = not value
-#         exemplary = Pool().get('library.book.exemplary').__table__()
-#         bookshelf = cls.__table__()
-
-#         subquery = exemplary.select(exemplary.bookshelf, Count(exemplary.bookshelf).as_('count'),
-#                 group_by=[exemplary.bookshelf])
-        
-#         query = bookshelf.join(subquery, condition=(
-#             bookshelf.id == subquery.bookshelf
-#         )).select(bookshelf.id, where=(subquery.count == bookshelf.capacity)
-#                   )
-
-#         return [('id', 'in' if value else 'not in', query)]
