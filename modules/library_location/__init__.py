@@ -22,5 +22,6 @@ def register():
         wizard.PutInBookshelf,
         wizard.PutInStorage,
         wizard.CreateExemplaries,
+        wizard.Borrow,
         wizard.Return,
         module='library_location', type_='wizard')

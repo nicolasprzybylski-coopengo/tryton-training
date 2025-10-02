@@ -14,9 +14,10 @@ __all__ = [
     'PutInStorageBookshelf',
     'PutInStorageBookshelfParameters',
     'CreateExemplaries',
-    'CreateExemplariesParameters',
-    'Return',
-    'BorrowSelectBooks'
+    'CreateExemplariesParameters'
+    'Borrow',
+    'BorrowSelectBooks',
+    'Return'
     ]
 
 
@@ -212,6 +213,17 @@ class BorrowSelectBooks(metaclass=PoolMeta):
     #     cls.exemplaries.domain += [('is_in_storage', '=', False),
     #                                   ('is_in_quarantine', '=', False)]
 
+class Borrow(metaclass=PoolMeta):
+    __name__ = 'library.user.borrow'
+
+    def transition_borrow(self):
+        res = super().transition_borrow()
+
+        Exemplary = Pool().get('library.book.exemplary')
+        Exemplary.write(list(self.select_books.exemplaries), {'bookshelf': None})
+
+        return res
+    
 class Return(metaclass=PoolMeta):
     __name__ = 'library.user.return'
 
