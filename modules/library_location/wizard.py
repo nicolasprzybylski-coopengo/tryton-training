@@ -74,8 +74,8 @@ class PutInStorage(Wizard):
 
     __name__ = 'library.book.exemplary.put_in_storage'
 
-    start_state = 'check_if_already_in_storage'
-    check_if_already_in_storage = StateTransition()
+    start_state = 'check_eligibility'
+    check_eligibility = StateTransition()
     parameters = StateView(
         'library.book.exemplary.put_in_storage.parameters',
         'library_location.exemplary_put_in_storage_view_form', [
@@ -89,7 +89,7 @@ class PutInStorage(Wizard):
     def __setup__(cls):
         super().__setup__()
         cls._error_messages.update({
-                'already_in_storage': 'Some exemplaries are already in the storage : %(exemplaries)s'
+                'ineligible': 'Some are not available and therefore cannot be moved to storage :\n- %(exemplaries)s'
                 })
 
     def default_parameters(self, name):
@@ -98,22 +98,22 @@ class PutInStorage(Wizard):
                 Transaction().context.get('active_ids'))
 
         return {
-            'exemplaries': [e.id for e in exemplaries if e.bookshelf != None]
+            'exemplaries': [e.id for e in exemplaries if e.is_available == True]
         }
     
-    def transition_check_if_already_in_storage(self):
+    def transition_check_eligibility(self):
         Exemplary = Pool().get('library.book.exemplary')
         exemplaries = Exemplary.browse(
                 Transaction().context.get('active_ids'))
         
-        alrady_in_storage = [e.identifier for e in exemplaries if e.bookshelf == None]
+        ineligible = [e.rec_name for e in exemplaries if e.is_available == False]
 
-        if alrady_in_storage:
+        if ineligible:
             self.raise_user_warning(
-                ', '.join(alrady_in_storage),
-                'already_in_storage',
+                ', '.join(ineligible),
+                'ineligible',
                 {
-                    'exemplaries' : ', '.join(alrady_in_storage)
+                    'exemplaries' : '\n- '.join(ineligible)
                 }
             )
 
@@ -134,7 +134,7 @@ class PutInStorageParameters(ModelView):
 
     exemplaries = fields.Many2Many('library.book.exemplary', None, None,
         'Exemplaries', required=True,
-        domain = [('bookshelf', "!=", None)])
+        domain = [('is_available', "=", True)])
 
     
 class CreateExemplaries(metaclass=PoolMeta):
