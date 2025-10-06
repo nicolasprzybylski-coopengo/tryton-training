@@ -1,14 +1,14 @@
 import datetime
 
-from sql import Window, Literal, Null
+from sql import Literal, Null
 from sql.conditionals import Coalesce
-from sql.aggregate import Count, Max
+from sql.aggregate import Count
+from sql.operators import Equal, NotEqual, Greater, GreaterEqual, Less, LessEqual, In, NotIn
 
 from trytond.pool import Pool, PoolMeta
 from trytond.transaction import Transaction
 from trytond.model import ModelSQL, ModelView, fields
-from trytond.model import Unique
-from trytond.pyson import Eval, If, Bool, Date
+from trytond.pyson import Date
 
 
 __all__ = [
@@ -151,6 +151,7 @@ class Bookshelf(ModelSQL, ModelView):
     available_slots = fields.Function(
         fields.Integer('Available slots', help='The number of available slots in the bookshelf'),
         'getter_exemplaries_in_bookshelf',
+        searcher='search_available_slots'
     )
     is_full = fields.Function(
         fields.Boolean('Is full', help='True if the bookshelf is full and' \
@@ -213,6 +214,36 @@ class Bookshelf(ModelSQL, ModelView):
 
         return [('id', 'in' if value else 'not in', query)]
     
+    @classmethod
+    def search_available_slots(cls, name, clause):
+        import logging
+        logger = logging.info('TEST')
+        logger.info("\n"*20)
+        logger.info(clause)
+        _, operator, value = clause
+        exemplary = Pool().get('library.book.exemplary').__table__()
+        bookshelf = cls.__table__()
+
+        map = {
+            '>': Greater,
+            '>=': GreaterEqual,
+            '<': Less,
+            '<=': LessEqual,
+            '=': Equal,
+            '!=': NotEqual,
+            'in': In,
+            'not in': NotIn
+        }
+
+        query = bookshelf.join(exemplary,
+                               condition=exemplary.bookshelf == bookshelf.id).select(
+                                    bookshelf.id,
+                                    group_by=[bookshelf.id],
+                                    having=map[operator](Count(bookshelf.id), value)
+                                )
+        logger.info(query)
+        return [('id', 'in' , query)]
+    
     
 class QuarantineZone(ModelSQL, ModelView):
     'Quarantine Zone'
@@ -270,6 +301,8 @@ class Exemplary(MixinExemplaryState, metaclass=PoolMeta):
 
     bookshelf = fields.Many2One('library.floor.room.bookshelf', 'Bookshelf',
         ondelete='RESTRICT', select=True, readonly=True)
+    
+    # several booleans to define the state of an examplary (being borrowed, in storage, in quarantine...)
     is_in_storage = fields.Function(
         fields.Boolean('Is in storage', help='Boolean to true if the exemplary is currently in storage'),
         'getter_is_in_storage',
@@ -292,23 +325,6 @@ class Exemplary(MixinExemplaryState, metaclass=PoolMeta):
     )
 
     @classmethod
-    def get_cursor_getter_is_available(cls, exemplaries):
-        cursor = Transaction().connection.cursor()
-        query = cls.get_sql_query_for_field_getter(in_bookshelf=False,
-                                                    id_filter=[x.id for x in exemplaries])
-        cursor.execute(*query)
-        return cursor
-    
-    @classmethod
-    def get_query_search_is_available(cls):
-        return cls.get_sql_query_for_field_getter(in_bookshelf=False)
-    
-    @classmethod
-    def get_domain_search_is_available(cls, value):
-        query = cls.get_query_search_is_available()
-        return [('id', 'not in' if value else 'in', query)]
-
-    @classmethod
     def getter_is_in_storage(cls, exemplaries, name):
         result = {e.id: True for e in exemplaries}
         cursor = Transaction().connection.cursor()
@@ -319,16 +335,6 @@ class Exemplary(MixinExemplaryState, metaclass=PoolMeta):
             result[exemplary_id] = False
 
         return result
-    
-    @classmethod
-    def search_is_in_storage(cls, name, clause):
-        _, operator, value = clause
-        if operator == '!=':
-            value = not value       
-                
-        query = cls.get_sql_query_for_field_getter(in_bookshelf=True)
-        
-        return [('id', 'not in' if value else 'in', query)]
     
     @classmethod
     def getter_is_in_quarantine(cls, exemplaries, name):
@@ -349,19 +355,6 @@ class Exemplary(MixinExemplaryState, metaclass=PoolMeta):
         return result
     
     @classmethod
-    def search_is_in_quarantine(cls, name, clause):
-        _, operator, value = clause
-        if operator == '!=':
-            value = not value
-        quarantine_zone = Pool().get('library.quarantine_zone').__table__()
-
-        query = quarantine_zone.select(
-            quarantine_zone.exemplary,
-            where=cls.get_sql_where_exemplary_is_in_quarantine(quarantine_zone))
-            
-        return [('id', 'in' if value else 'not in', query)]
-    
-    @classmethod
     def getter_is_checked_out(cls, exemplaries, name):
         result = {e.id: False for e in exemplaries}
         checkout = Pool().get('library.user.checkout').__table__()
@@ -373,20 +366,6 @@ class Exemplary(MixinExemplaryState, metaclass=PoolMeta):
         for exemplary_id, in cursor.fetchall():
             result[exemplary_id] = True
         return result
-    
-    @classmethod
-    def search_is_checked_out(cls, name, clause):
-        _, operator, value = clause
-        if operator == '!=':
-            value = not value
-        
-        pool = Pool()
-        checkout = pool.get('library.user.checkout').__table__()
-
-        query = checkout.select(checkout.exemplary,
-                where=cls.get_sql_where_exemplary_is_checked_out(checkout))
-
-        return [('id', 'in' if value else 'not in', query)]
     
     @classmethod
     def getter_is_reserved(cls, exemplaries, name):
@@ -414,6 +393,43 @@ class Exemplary(MixinExemplaryState, metaclass=PoolMeta):
         return result
     
     @classmethod
+    def search_is_in_storage(cls, name, clause):
+        _, operator, value = clause
+        if operator == '!=':
+            value = not value       
+                
+        query = cls.get_sql_query_for_field_getter(in_bookshelf=True)
+        
+        return [('id', 'not in' if value else 'in', query)]
+    
+    @classmethod
+    def search_is_in_quarantine(cls, name, clause):
+        _, operator, value = clause
+        if operator == '!=':
+            value = not value
+        quarantine_zone = Pool().get('library.quarantine_zone').__table__()
+
+        query = quarantine_zone.select(
+            quarantine_zone.exemplary,
+            where=cls.get_sql_where_exemplary_is_in_quarantine(quarantine_zone))
+            
+        return [('id', 'in' if value else 'not in', query)]
+    
+    @classmethod
+    def search_is_checked_out(cls, name, clause):
+        _, operator, value = clause
+        if operator == '!=':
+            value = not value
+        
+        pool = Pool()
+        checkout = pool.get('library.user.checkout').__table__()
+
+        query = checkout.select(checkout.exemplary,
+                where=cls.get_sql_where_exemplary_is_checked_out(checkout))
+
+        return [('id', 'in' if value else 'not in', query)]
+    
+    @classmethod
     def search_is_reserved(cls, name, clause):
         _, operator, value = clause
         if operator == '!=':
@@ -434,6 +450,20 @@ class Exemplary(MixinExemplaryState, metaclass=PoolMeta):
                 )
             )
         return [('id', 'in' if value else 'not in', query)]
+    
+    @classmethod
+    def get_query_getter_is_available(cls, exemplaries):
+        return cls.get_sql_query_for_field_getter(in_bookshelf=False,
+                                                    id_filter=[x.id for x in exemplaries])
+    
+    @classmethod
+    def get_query_search_is_available(cls):
+        return cls.get_sql_query_for_field_getter(in_bookshelf=False)
+    
+    @classmethod
+    def get_domain_search_is_available(cls, value):
+        query = cls.get_query_search_is_available()
+        return [('id', 'not in' if value else 'in', query)]
     
 class Checkout(metaclass=PoolMeta):
     __name__ = 'library.user.checkout'

@@ -4,8 +4,7 @@ from trytond.pool import Pool, PoolMeta
 from trytond.pyson import Eval, PYSONEncoder, Date
 from trytond.transaction import Transaction
 from trytond.model import ModelView, fields
-from trytond.wizard import Wizard, StateView, StateTransition, StateAction
-from trytond.wizard import Button
+from trytond.wizard import Wizard, StateView, StateTransition, StateAction, Button
 
 from .library import QUARANTINE_ZONE_DURATION
 
@@ -37,6 +36,15 @@ class PutInBookshelf(Wizard):
             default=True)])
     put = StateTransition()
 
+    @classmethod
+    def __setup__(cls):
+        super().__setup__()
+        cls._error_messages.update({
+                'ineligible': 'Some selected exemplaries are either in quarantine or currenty chcked out '
+                'and therefore cannot be moved to the selected bookshelf :\n- %(exemplaries)s',
+                'not_enough_space_in_bookshelf': 'There is not enough space in the bookshelf to put'
+                'the selected exemplaries'})
+        
     def default_parameters(self, name):
         Exemplary = Pool().get('library.book.exemplary')
         exemplaries = Exemplary.browse(
@@ -46,14 +54,6 @@ class PutInBookshelf(Wizard):
             'exemplaries': [e.id for e in exemplaries if not (e.is_in_quarantine or e.is_checked_out)]
         }
     
-    @classmethod
-    def __setup__(cls):
-        super().__setup__()
-        cls._error_messages.update({
-                'ineligible': 'Some selected exemplaries are either in quarantine or currenty chcked out '
-                'and therefore cannot be moved to the selected bookshelf :\n- %(exemplaries)s',
-                'not_enough_space_in_bookshelf': 'There is not enough space in the bookshelf to put'
-                'the selected exemplaries'})
     
     def transition_check_eligibility(self):
         Exemplary = Pool().get('library.book.exemplary')
@@ -119,7 +119,8 @@ class PutInStorage(Wizard):
     def __setup__(cls):
         super().__setup__()
         cls._error_messages.update({
-                'ineligible': 'Some selected exemplaries are not available and therefore cannot be moved to storage :\n- %(exemplaries)s'
+                'ineligible': 'Some selected exemplaries are not available or already in storage'
+                'and therefore cannot be moved to storage :\n- %(exemplaries)s'
                 })
 
     def default_parameters(self, name):
@@ -315,7 +316,7 @@ class Return(metaclass=PoolMeta):
         for checkout in self.select_checkouts.checkouts:
             quarantine_zone = QuarantineZone()
             quarantine_zone.exemplary = checkout.exemplary.id
-            quarantine_zone.start_date = datetime.date.today()
+            quarantine_zone.start_date = self.select_checkouts.date
             to_create.append(quarantine_zone)
 
             if checkout.return_date < checkout.expected_return_date and checkout.exemplary.is_reserved:

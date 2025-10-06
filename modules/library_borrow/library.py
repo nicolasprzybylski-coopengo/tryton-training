@@ -194,20 +194,13 @@ class Exemplary(metaclass=PoolMeta):
         fields.Boolean('Is available', help='If True, the exemplary is '
             'currently available for borrowing'),
         'getter_is_available', searcher='search_is_available')
-
-    @classmethod
-    def get_cursor_getter_is_available(cls, exemplaries):
-        checkout = Pool().get('library.user.checkout').__table__()
-        cursor = Transaction().connection.cursor()
-        cursor.execute(*checkout.select(checkout.exemplary,
-                where=(checkout.return_date == Null)
-                & checkout.exemplary.in_([x.id for x in exemplaries])))
-        return cursor
         
     @classmethod
     def getter_is_available(cls, exemplaries, name):
         result = {x.id: True for x in exemplaries}
-        cursor = cls.get_cursor_getter_is_available(exemplaries)
+        cursor = Transaction().connection.cursor()
+        query = cls.get_query_getter_is_available(exemplaries)
+        cursor.execute(*query)
         for exemplary_id, in cursor.fetchall():
             result[exemplary_id] = False
         return result
@@ -229,7 +222,14 @@ class Exemplary(metaclass=PoolMeta):
             tables['book'] = {None: (book, book.id == exemplary.book)}
 
         return [Concat(book.title, exemplary.identifier)]
-
+    
+    @classmethod
+    def search_is_available(cls, name, clause):
+        _, operator, value = clause
+        if operator == '!=':
+            value = not value
+        return cls.get_domain_search_is_available(value)
+    
     @classmethod
     def get_query_search_is_available(cls):
         pool = Pool()
@@ -248,8 +248,8 @@ class Exemplary(metaclass=PoolMeta):
         return [('id', 'in' if value else 'not in', query)]
     
     @classmethod
-    def search_is_available(cls, name, clause):
-        _, operator, value = clause
-        if operator == '!=':
-            value = not value
-        return cls.get_domain_search_is_available(value)
+    def get_query_getter_is_available(cls, exemplaries):
+        checkout = Pool().get('library.user.checkout').__table__()
+        return checkout.select(checkout.exemplary,
+                where=(checkout.return_date == Null)
+                & checkout.exemplary.in_([x.id for x in exemplaries]))
