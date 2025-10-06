@@ -97,17 +97,13 @@ class Floor(ModelSQL, ModelView):
     @classmethod
     def getter_number_of_rooms(cls, floors, name):
         room = Pool().get('library.floor.room').__table__()
-        result = {f.id: 0 for f in floors}
         cursor = Transaction().connection.cursor()
 
         cursor.execute(*room.select(room.floor, Count(room.floor),
                 where=room.floor.in_([f.id for f in floors]),
                 group_by=[room.floor]))
         
-        for floor_id, count in cursor.fetchall():
-            result[floor_id] = count
-
-        return result
+        return dict(cursor.fetchall())
     
 
 class Room(ModelSQL, ModelView):
@@ -127,17 +123,13 @@ class Room(ModelSQL, ModelView):
     @classmethod
     def getter_number_of_bookshelves(cls, rooms, name):
         bookshelf = Pool().get('library.floor.room.bookshelf').__table__()
-        result = {r.id: 0 for r in rooms}
         cursor = Transaction().connection.cursor()
 
         cursor.execute(*bookshelf.select(bookshelf.room, Count(bookshelf.room),
                 where=bookshelf.room.in_([r.id for r in rooms]),
                 group_by=[bookshelf.room]))
         
-        for room_id, count in cursor.fetchall():
-            result[room_id] = count
-
-        return result
+        return dict(cursor.fetchall())
     
 
 class Bookshelf(ModelSQL, ModelView):
@@ -154,73 +146,52 @@ class Bookshelf(ModelSQL, ModelView):
                 'can contain', required=True)
     number_of_exemplaries= fields.Function(
         fields.Integer('Number of exemplaries', help='The number of exemplaries in this bookshelf'),
-        'getter_number_of_exemplaries',
+        'getter_exemplaries_in_bookshelf',
     )
     available_slots = fields.Function(
         fields.Integer('Available slots', help='The number of available slots in the bookshelf'),
-        'getter_available_slots',
+        'getter_exemplaries_in_bookshelf',
     )
     is_full = fields.Function(
         fields.Boolean('Is full', help='True if the bookshelf is full and' \
         'cannot contain any additional exemplary'),
-        'getter_is_full',
+        'getter_exemplaries_in_bookshelf',
         searcher='search_is_full'
     )
-    
-    @classmethod
-    def getter_number_of_exemplaries(cls, bookshelves, name):
-        exemplary = Pool().get('library.book.exemplary').__table__()
-        result = {b.id: 0 for b in bookshelves}
-        cursor = Transaction().connection.cursor()
 
-        cursor.execute(*exemplary.select(exemplary.bookshelf, Count(exemplary.bookshelf),
-                where=exemplary.bookshelf.in_([b.id for b in bookshelves]),
-                group_by=[exemplary.bookshelf]))
-        
-        for bookshelf_id, count in cursor.fetchall():
-            result[bookshelf_id] = count
-
-        return result
-    
     @classmethod
-    def getter_available_slots(cls, bookshelves, name):
+    def getter_exemplaries_in_bookshelf(cls, bookshelves, name):
         exemplary = Pool().get('library.book.exemplary').__table__()
         bookshelf = cls.__table__()
-        result = {b.id: 0 for b in bookshelves}
+        default_value = False if name == 'is_full' else 0
+        result = {b.id: default_value for b in bookshelves}
+
         cursor = Transaction().connection.cursor()
 
-        subquery = exemplary.select(exemplary.bookshelf, Count(exemplary.bookshelf).as_('count'),
+        base_query = exemplary.select(exemplary.bookshelf, Count(exemplary.bookshelf).as_('count'),
                 where=exemplary.bookshelf.in_([b.id for b in bookshelves]),
                 group_by=[exemplary.bookshelf])
         
-        cursor.execute(*bookshelf.join(subquery, 'LEFT OUTER', condition=(
-            bookshelf.id == subquery.bookshelf
-        )).select(bookshelf.id, (bookshelf.capacity - Coalesce(subquery.count, Literal(0)))
-                  ))
-
-        for bookshelf_id, count in cursor.fetchall():
-            result[bookshelf_id] = count
-
-        return result
-    
-    @classmethod
-    def getter_is_full(cls, bookshelves, name):
-        exemplary = Pool().get('library.book.exemplary').__table__()
-        bookshelf = cls.__table__()
-        result = {b.id: False for b in bookshelves}
-        cursor = Transaction().connection.cursor()
-
-        subquery = exemplary.select(exemplary.bookshelf, Count(exemplary.bookshelf).as_('count'),
-                where=exemplary.bookshelf.in_([b.id for b in bookshelves]),
-                group_by=[exemplary.bookshelf])
+        if name == 'number_of_exemplaries':
+            query = base_query
+        elif name == 'available_slots':
+            query = bookshelf.join(
+                base_query,
+                'LEFT OUTER',
+                condition=(
+                    bookshelf.id == base_query.bookshelf
+                )).select(bookshelf.id, (bookshelf.capacity - Coalesce(base_query.count, Literal(0))))
+        else:
+            query = bookshelf.join(
+                base_query,
+                condition=(
+                    bookshelf.id == base_query.bookshelf
+                )).select(bookshelf.id, (base_query.count == bookshelf.capacity))
         
-        cursor.execute(*bookshelf.join(subquery, condition=(
-            bookshelf.id == subquery.bookshelf
-        )).select(bookshelf.id, (subquery.count == bookshelf.capacity)
-                  ))
-        
-        for bookshelf_id, is_full in cursor.fetchall():
-            result[bookshelf_id] = is_full
+        cursor.execute(*query)
+
+        for bookshelf_id, value in cursor.fetchall():
+            result[bookshelf_id] = value
 
         return result
     
@@ -279,21 +250,20 @@ class Book(MixinExemplaryState, metaclass=PoolMeta):
     __name__ = 'library.book'
 
     @classmethod
-    def get_cursor_getter_is_available(cls):
+    def get_query_getter_is_available(cls):
         pool = Pool()
         exemplary = pool.get('library.book.exemplary').__table__()
         book = cls.__table__()
-        cursor = Transaction().connection.cursor()
         subquery = cls.get_sql_query_for_field_getter(in_bookshelf=False)
-        cursor.execute(*exemplary.join(
+        query = exemplary.join(
                 book,
                 condition=(exemplary.book == book.id)
             ).select(
                 book.id,
                 distinct=True,
                 where=~exemplary.id.in_(subquery)
-            ))
-        return cursor
+            )
+        return query
 
 class Exemplary(MixinExemplaryState, metaclass=PoolMeta):
     __name__ = 'library.book.exemplary'

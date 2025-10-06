@@ -144,24 +144,25 @@ class Book(metaclass=PoolMeta):
         'getter_is_available', searcher='search_is_available')
 
     @classmethod
-    def get_cursor_getter_is_available(cls):
+    def get_query_getter_is_available(cls):
         pool = Pool()
         checkout = pool.get('library.user.checkout').__table__()
         exemplary = pool.get('library.book.exemplary').__table__()
         book = cls.__table__()
-        cursor = Transaction().connection.cursor()
-        cursor.execute(*book.join(exemplary,
+        query = book.join(exemplary,
                 condition=(exemplary.book == book.id)
                 ).join(checkout, 'LEFT OUTER',
                 condition=(exemplary.id == checkout.exemplary)
                 ).select(book.id,
-                where=(checkout.return_date != Null) | (checkout.id == Null)))
-        return cursor
+                where=(checkout.return_date != Null) | (checkout.id == Null))
+        return query
     
     @classmethod
     def getter_is_available(cls, books, name):
         result = {x.id: False for x in books}
-        cursor = cls.get_cursor_getter_is_available()
+        cursor = Transaction().connection.cursor()
+        query = cls.get_query_getter_is_available()
+        cursor.execute(*query)
         for book_id, in cursor.fetchall():
             result[book_id] = True
         return result

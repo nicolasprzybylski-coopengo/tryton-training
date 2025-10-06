@@ -37,14 +37,6 @@ class PutInBookshelf(Wizard):
             default=True)])
     put = StateTransition()
 
-    @classmethod
-    def __setup__(cls):
-        super().__setup__()
-        cls._error_messages.update({
-                'not_enough_space': 'There is not enough space in the selected bookshelf'
-                'to put the exemplaries in',
-                })
-
     def default_parameters(self, name):
         Exemplary = Pool().get('library.book.exemplary')
         exemplaries = Exemplary.browse(
@@ -315,16 +307,16 @@ class Return(metaclass=PoolMeta):
     def transition_return_(self):
         res = super().transition_return_()
         pool = Pool()
-        QuanrantineZone = pool.get('library.quarantine_zone')
+        QuarantineZone = pool.get('library.quarantine_zone')
         Exemplary = pool.get('library.book.exemplary')
         Checkout = pool.get('library.user.checkout')
         to_create = []
 
         for checkout in self.select_checkouts.checkouts:
-            quanrantine_zone = QuanrantineZone()
-            quanrantine_zone.exemplary = checkout.exemplary.id
-            quanrantine_zone.start_date = datetime.date.today()
-            to_create.append(quanrantine_zone)
+            quarantine_zone = QuarantineZone()
+            quarantine_zone.exemplary = checkout.exemplary.id
+            quarantine_zone.start_date = datetime.date.today()
+            to_create.append(quarantine_zone)
 
             if checkout.return_date < checkout.expected_return_date and checkout.exemplary.is_reserved:
                 reservation_checkout_id = Exemplary.get_checkout_reserve_id(checkout.exemplary.id)[0]
@@ -332,6 +324,6 @@ class Return(metaclass=PoolMeta):
                     'date': checkout.return_date + datetime.timedelta(QUARANTINE_ZONE_DURATION)
                 })
     
-        QuanrantineZone.save(to_create)
+        QuarantineZone.save(to_create)
 
         return res
