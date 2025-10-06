@@ -126,7 +126,7 @@
             <field name="domain" eval="[('end_date', '&gt;', Date())]" pyson="1"/>
             <field name="act_window" ref="act_open_quarantine_zone"/>
         </record>
-        <record model="ir.action.act_window.domain" id="act_quarantine_zone_domain_onpast">
+        <record model="ir.action.act_window.domain" id="act_quarantine_zone_domain_past">
             <field name="name">Past</field>
             <field name="sequence" eval="20"/>
             <field name="domain" eval="[('end_date', '&lt;=', Date())]" pyson="1"/>
@@ -185,6 +185,33 @@
             <field name="sequence" eval="50"/>
             <field name="act_window" ref="library.act_exemplary"/>
         </record>
-        <menuitem parent="menu_library_organisation" sequence="90" action="library.act_exemplary" id="menu_exemplary"/>
+        <menuitem parent="library.menu_library" action="library.act_exemplary" id="menu_exemplary"/>
+        <!-- ############ -->
+        <!-- # Checkout # -->
+        <!-- ############ -->
+        <record model="ir.action.act_window.domain" id="act_checkout_domain_ongoing">
+            <field name="name">Ongoing</field>
+            <field name="sequence" eval="10"/>
+            <field name="domain" eval="[('return_date', '=', None), ('date', '&lt;=', Date())]" pyson="1"/>
+            <field name="act_window" ref="library_borrow.act_open_user_checkout"/>
+        </record>
+        <record model="ir.action.act_window.domain" id="act_checkout_domain_past">
+            <field name="name">Past</field>
+            <field name="sequence" eval="10"/>
+            <field name="domain" eval="[('return_date', '!=', None)]" pyson="1"/>
+            <field name="act_window" ref="library_borrow.act_open_user_checkout"/>
+        </record>
+        <record model="ir.action.act_window.domain" id="act_checkout_domain_future">
+            <field name="name">Future</field>
+            <field name="sequence" eval="10"/>
+            <field name="domain" eval="[('return_date', '=', None), ('date', '&gt;', Date())]" pyson="1"/>
+            <field name="act_window" ref="library_borrow.act_open_user_checkout"/>
+        </record>
+        <record model="ir.action.act_window.domain" id="act_checkout_domain_all">
+            <field name="name">All</field>
+            <field name="sequence" eval="10"/>
+            <field name="act_window" ref="library_borrow.act_open_user_checkout"/>
+        </record>
+        <menuitem parent="library.menu_library" action="library_borrow.act_open_user_checkout" id="menu_open_user_checkout"/>
     </data>
 </tryton>

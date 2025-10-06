@@ -1,18 +1,21 @@
 import datetime
 
 from trytond.pool import Pool, PoolMeta
-from trytond.pyson import Eval, PYSONEncoder
+from trytond.pyson import Eval, PYSONEncoder, Date
 from trytond.transaction import Transaction
 from trytond.model import ModelView, fields
 from trytond.wizard import Wizard, StateView, StateTransition, StateAction
 from trytond.wizard import Button
 
+from .library import QUARANTINE_ZONE_DURATION
 
 __all__ = [
     'PutInBookshelf',
     'PutInBookshelfParameters',
     'PutInStorageBookshelf',
     'PutInStorageBookshelfParameters',
+    'Reserve',
+    'ReserveSelectBooks',
     'CreateExemplaries',
     'CreateExemplariesParameters'
     'Borrow',
@@ -172,7 +175,98 @@ class PutInStorageParameters(ModelView):
         domain = [('is_available', "=", True)],
         depends = ['is_available'])
 
+class Reserve(Wizard):
+    'Reserve books'
+    __name__ = 'library.user.reserve'
+
+    start_state = 'select_books'
+    select_books = StateView('library.user.reserve.select_books',
+        'library_location.reserve_select_books_view_form', [
+            Button('Cancel', 'end', 'tryton-cancel'),
+            Button('Reserve', 'reserve', 'tryton-go-next', default=True)])
+    reserve = StateTransition()
+    checkouts = StateAction('library_borrow.act_open_user_checkout')
+
+    @classmethod
+    def __setup__(cls):
+        super().__setup__()
+        cls._error_messages.update({
+                'available': 'Exemplary %(exemplary)s is currently available,'
+                'it should be borrowed instead of reserved',
+                'still_in_quarantine': 'Quarantine for exemplary %(exemplary)s is ending '
+                '%(end_of_quarantine)s at the selected reservation date.',
+                'still_in_quarantine_after_current_checkout': 'Exemplary %(exemplary)s is currently ' 
+                'checked out until %(end_of_checkout)s and will then be in quarantine until '
+                '%(end_of_quarantine)s',
+                'already_reserved': 'Exemplary %(exemplary)s is already_reserved'
+                })
+
+    def default_select_books(self, name):
+        return {
+            'user': Transaction().context.get('active_id')
+            }
     
+    def transition_reserve(self):
+        pool = Pool()
+        Checkout = pool.get('library.user.checkout')
+        Quarantine_Zone = pool.get('library.quarantine_zone')
+        exemplaries = self.select_books.exemplaries
+        user = self.select_books.user
+        checkouts = []
+        for exemplary in exemplaries:
+            if exemplary.is_reserved:
+                self.raise_user_error('already_reserved', {
+                        'exemplary': exemplary.rec_name})
+                
+            if exemplary.is_available:
+                self.raise_user_error('available', {
+                        'exemplary': exemplary.rec_name})
+                
+            if exemplary.is_in_quarantine:
+                quarantine_zone = Quarantine_Zone.search([('exemplary', '=', exemplary),
+                                                          ('end_date', '>', datetime.date.today())])
+                quarantine_end_date = quarantine_zone[0].end_date
+                if self.select_books.date < quarantine_end_date:
+                    self.raise_user_error('still_in_quarantine', {
+                        'exemplary': exemplary.rec_name,
+                        'quarantine_end_date': quarantine_end_date}) 
+                    
+            if exemplary.is_checked_out:
+                current_checkout = Checkout.search([('exemplary', '=', exemplary),
+                                            ('return_date', '=', None),
+                                            ('date', '<=', datetime.date.today())])
+                min_reserve_date = current_checkout[0].expected_return_date + datetime.timedelta(QUARANTINE_ZONE_DURATION)
+                if self.select_books.date < min_reserve_date:
+                    self.raise_user_error('still_in_quarantine_after_current_checkout', {
+                        'exemplary': exemplary.rec_name,
+                        'end_of_checkout': current_checkout[0].expected_return_date,
+                        'end_of_quarantine': min_reserve_date}) 
+
+            checkouts.append(Checkout(
+                    user=user, date=self.select_books.date,
+                    exemplary=exemplary))
+        Checkout.save(checkouts)
+        self.select_books.checkouts = checkouts
+        return 'checkouts'
+    
+    def do_checkouts(self, action):
+        action['pyson_domain'] = PYSONEncoder().encode([
+                ('id', 'in', [x.id for x in self.select_books.checkouts])])
+        return action, {}
+    
+class ReserveSelectBooks(ModelView):
+    'Select Books'
+    __name__ = 'library.user.reserve.select_books'
+
+    user = fields.Many2One('library.user', 'User', required=True)
+    exemplaries = fields.Many2Many('library.book.exemplary', None, None,
+        'Exemplaries', required=True, domain=[('is_available', '=', False),
+                                              ('is_in_storage', '=', False),
+                                              ('is_reserved', '=', False)])
+    date = fields.Date('Date', required=True, domain=[('date', '>', Date())])
+    checkouts = fields.Many2Many('library.user.checkout', None, None,
+        'Checkouts', readonly=True)
+        
 class CreateExemplaries(metaclass=PoolMeta):
     'Create Exemplaries'
     __name__ = 'library.book.create_exemplaries'
@@ -214,24 +308,30 @@ class Borrow(metaclass=PoolMeta):
         Exemplary.write(list(self.select_books.exemplaries), {'bookshelf': None})
 
         return res
-    
+
 class Return(metaclass=PoolMeta):
     __name__ = 'library.user.return'
 
     def transition_return_(self):
         res = super().transition_return_()
-
-        QuanrantineZone = Pool().get('library.quarantine_zone')
-        returned_exemplaries_ids = [c.exemplary.id for c in
-                                                 list(self.select_checkouts.checkouts)]
+        pool = Pool()
+        QuanrantineZone = pool.get('library.quarantine_zone')
+        Exemplary = pool.get('library.book.exemplary')
+        Checkout = pool.get('library.user.checkout')
         to_create = []
 
-        for exemplary_id in returned_exemplaries_ids:
+        for checkout in self.select_checkouts.checkouts:
             quanrantine_zone = QuanrantineZone()
-            quanrantine_zone.exemplary = exemplary_id
+            quanrantine_zone.exemplary = checkout.exemplary.id
             quanrantine_zone.start_date = datetime.date.today()
             to_create.append(quanrantine_zone)
-        
+
+            if checkout.return_date < checkout.expected_return_date and checkout.exemplary.is_reserved:
+                reservation_checkout_id = Exemplary.get_checkout_reserve_id(checkout.exemplary.id)[0]
+                Checkout.write(Checkout.browse([reservation_checkout_id]), {
+                    'date': checkout.return_date + datetime.timedelta(QUARANTINE_ZONE_DURATION)
+                })
+    
         QuanrantineZone.save(to_create)
 
         return res

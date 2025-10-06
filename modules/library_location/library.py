@@ -17,8 +17,11 @@ __all__ = [
     'Bookshelf',
     'Exemplary',
     'Book',
+    'Checkout',
     'QuarantineZone'
     ]
+
+QUARANTINE_ZONE_DURATION=7
 
 class MixinExemplaryState():
     @classmethod
@@ -29,7 +32,8 @@ class MixinExemplaryState():
     @classmethod
     def get_sql_where_exemplary_is_checked_out(cls, checkout):
         return ((checkout.return_date == Null)
-                & (checkout.id != Null))
+                & (checkout.id != Null)
+                & (checkout.date <= datetime.date.today()))
     
     @classmethod
     def get_sql_where_exemplary_is_in_bookshelf(cls, exemplary, is_in=True):
@@ -59,6 +63,24 @@ class MixinExemplaryState():
                 'LEFT OUTER',
                 condition=(quarantine_zone.exemplary == exemplary.id)
             ).select(exemplary.id, where=where)
+    
+    @staticmethod
+    def get_checkout_reserve_id(exemplary_id):
+        pool = Pool()
+        checkout = pool.get('library.user.checkout').__table__()
+        cursor = Transaction().connection.cursor()
+        query = checkout.select(
+            checkout.id,
+            where=(
+                    (checkout.return_date == Null) &
+                    (checkout.date > datetime.date.today()) &
+                    (checkout.exemplary == exemplary_id)
+                    )
+            )
+
+        cursor.execute(*query)
+        
+        return cursor.fetchone()
 
 class Floor(ModelSQL, ModelView):
     'Floor'
@@ -247,9 +269,9 @@ class QuarantineZone(ModelSQL, ModelView):
         _, operator, value = clause
 
         if isinstance(value, datetime.date):
-            value = value - datetime.timedelta(days=7)
+            value = value - datetime.timedelta(days=QUARANTINE_ZONE_DURATION)
         elif isinstance(value, (list, tuple)):
-            value = [(x - datetime.timedelta(days=7) if x else x) for x in value]
+            value = [(x - datetime.timedelta(days=QUARANTINE_ZONE_DURATION) if x else x) for x in value]
 
         return [('start_date', operator, value)]
     
@@ -292,6 +314,11 @@ class Exemplary(MixinExemplaryState, metaclass=PoolMeta):
         fields.Boolean('Is checked out', help='Boolean to true if the exemplary is currently checked out'),
         'getter_is_checked_out',
         searcher='search_is_checked_out'
+    )
+    is_reserved= fields.Function(
+        fields.Boolean('Is reserved', help='Boolean to true if the exemplary is reserved'),
+        'getter_is_reserved',
+        searcher='search_is_reserved'
     )
 
     @classmethod
@@ -390,3 +417,58 @@ class Exemplary(MixinExemplaryState, metaclass=PoolMeta):
                 where=cls.get_sql_where_exemplary_is_checked_out(checkout))
 
         return [('id', 'in' if value else 'not in', query)]
+    
+    @classmethod
+    def getter_is_reserved(cls, exemplaries, name):
+        pool = Pool()
+        checkout = pool.get('library.user.checkout').__table__()
+        exemplary = cls.__table__()
+        result = {e.id: False for e in exemplaries}
+        cursor = Transaction().connection.cursor()
+        cursor.execute(*exemplary.join(
+            checkout, 'LEFT OUTER',
+            condition=(exemplary.id == checkout.exemplary)
+        ).select(
+            exemplary.id,
+            where=(
+                    (checkout.return_date == Null) &
+                    (checkout.id != Null) &
+                    (checkout.date > datetime.date.today()) &
+                    checkout.exemplary.in_([e.id for e in exemplaries])
+                )
+            )
+        )
+
+        for exemplary_id, in cursor.fetchall():
+            result[exemplary_id] = True
+        return result
+    
+    @classmethod
+    def search_is_reserved(cls, name, clause):
+        _, operator, value = clause
+        if operator == '!=':
+            value = not value
+
+        pool = Pool()
+        checkout = pool.get('library.user.checkout').__table__()
+        exemplary = cls.__table__()
+        query = exemplary.join(
+            checkout, 'LEFT OUTER', 
+            condition=(exemplary.id == checkout.exemplary)
+        ).select(
+            exemplary.id,
+            where=(
+                    (checkout.return_date == Null) &
+                    (checkout.id != Null) &
+                    (checkout.date > datetime.date.today())
+                )
+            )
+        return [('id', 'in' if value else 'not in', query)]
+    
+class Checkout(metaclass=PoolMeta):
+    __name__ = 'library.user.checkout'
+
+    @classmethod
+    def __setup__(cls):
+        super().__setup__()
+        cls.date.domain = []

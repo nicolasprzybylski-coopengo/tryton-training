@@ -11,5 +11,7 @@
         <field name="is_in_quarantine"/>
         <label name="is_checked_out"/>
         <field name="is_checked_out"/>
+        <label name="is_reserved"/>
+        <field name="is_reserved"/>
     </xpath>
 </data>
