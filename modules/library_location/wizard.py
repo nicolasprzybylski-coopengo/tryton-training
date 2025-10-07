@@ -95,9 +95,19 @@ class PutInBookshelfParameters(ModelView):
         'Exemplaries', required=True,
         depends = ['is_in_quarantine', 'is_checked_out'],
         domain = [('is_in_quarantine' ,'=', False), ('is_checked_out', '=', False)])
+    number_of_exemplaries = fields.Function(
+        fields.Integer('Number of exemplaries'),
+        'on_change_with_number_of_exemplaries'
+    )
+    number_of_exemplaries.depends = ['exemplaries']
     target_bookshelf = fields.Many2One('library.floor.room.bookshelf', 'Target Bookshelf',
                                        required=True,
-                                       domain=[('is_full', '=', False)])
+                                       domain=[('available_slots', '>=', Eval('number_of_exemplaries'))],
+                                       depends=['number_of_exemplaries'])
+    
+    @fields.depends('exemplaries')
+    def on_change_with_number_of_exemplaries(self, name=None):
+        return len(self.exemplaries)
     
 
 class PutInStorage(Wizard):

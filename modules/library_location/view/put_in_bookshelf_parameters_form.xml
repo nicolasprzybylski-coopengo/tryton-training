@@ -2,6 +2,8 @@
 <form>
     <label name="exemplaries"/>
     <field name="exemplaries"/>
+    <label name="number_of_exemplaries"/>
+    <field name="number_of_exemplaries"/>
     <label name="target_bookshelf"/>
     <field name="target_bookshelf"/>
 </form>

@@ -218,10 +218,6 @@ class Bookshelf(ModelSQL, ModelView):
     
     @classmethod
     def search_available_slots(cls, name, clause):
-        import logging
-        logger = logging.info('TEST')
-        logger.info("\n"*20)
-        logger.info(clause)
         _, operator, value = clause
         exemplary = Pool().get('library.book.exemplary').__table__()
         bookshelf = cls.__table__()
@@ -236,14 +232,22 @@ class Bookshelf(ModelSQL, ModelView):
             'in': In,
             'not in': NotIn
         }
+        
+        sub_query = exemplary.select(
+            exemplary.bookshelf,
+            Count(exemplary.bookshelf).as_('count'),
+            group_by=[exemplary.bookshelf]
+        )
+        
+        query = bookshelf.join(
+            sub_query,
+            'LEFT OUTER',
+            condition=(
+                bookshelf.id == sub_query.bookshelf
+            )).select(bookshelf.id,
+                      where=map[operator]((bookshelf.capacity - Coalesce(sub_query.count, Literal(0))),
+                                           value))
 
-        query = bookshelf.join(exemplary,
-                               condition=exemplary.bookshelf == bookshelf.id).select(
-                                    bookshelf.id,
-                                    group_by=[bookshelf.id],
-                                    having=map[operator](Count(bookshelf.id), value)
-                                )
-        logger.info(query)
         return [('id', 'in' , query)]
     
     
