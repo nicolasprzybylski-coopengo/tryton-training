@@ -23,6 +23,7 @@ __all__ = [
 
 QUARANTINE_ZONE_DURATION=7
 
+
 class MixinExemplaryState():
     @classmethod
     def get_sql_where_exemplary_is_in_quarantine(cls, quarantine_zone):
@@ -81,6 +82,7 @@ class MixinExemplaryState():
         cursor.execute(*query)
         
         return cursor.fetchone()
+
 
 class Floor(ModelSQL, ModelView):
     'Floor'
@@ -277,6 +279,7 @@ class QuarantineZone(ModelSQL, ModelView):
 
         return [('start_date', operator, value)]
     
+
 class Book(MixinExemplaryState, metaclass=PoolMeta):
     __name__ = 'library.book'
 
@@ -295,6 +298,7 @@ class Book(MixinExemplaryState, metaclass=PoolMeta):
                 where=~exemplary.id.in_(subquery)
             )
         return query
+
 
 class Exemplary(MixinExemplaryState, metaclass=PoolMeta):
     __name__ = 'library.book.exemplary'
@@ -465,6 +469,7 @@ class Exemplary(MixinExemplaryState, metaclass=PoolMeta):
         query = cls.get_query_search_is_available()
         return [('id', 'not in' if value else 'in', query)]
     
+
 class Checkout(metaclass=PoolMeta):
     __name__ = 'library.user.checkout'
 

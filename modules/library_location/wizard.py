@@ -99,6 +99,7 @@ class PutInBookshelfParameters(ModelView):
                                        required=True,
                                        domain=[('is_full', '=', False)])
     
+
 class PutInStorage(Wizard):
     'Put In Storage'
 
@@ -158,6 +159,7 @@ class PutInStorage(Wizard):
         
         return 'end'
 
+
 class PutInStorageParameters(ModelView):
     'Take Ouf Of Bookshelf Parameters'
 
@@ -167,6 +169,7 @@ class PutInStorageParameters(ModelView):
         'Exemplaries', required=True,
         domain = [('is_available', "=", True)],
         depends = ['is_available'])
+
 
 class Reserve(Wizard):
     'Reserve books'
@@ -247,6 +250,7 @@ class Reserve(Wizard):
                 ('id', 'in', [x.id for x in self.select_books.checkouts])])
         return action, {}
     
+
 class ReserveSelectBooks(ModelView):
     'Select Books'
     __name__ = 'library.user.reserve.select_books'
@@ -260,6 +264,7 @@ class ReserveSelectBooks(ModelView):
     checkouts = fields.Many2Many('library.user.checkout', None, None,
         'Checkouts', readonly=True)
         
+
 class CreateExemplaries(metaclass=PoolMeta):
     'Create Exemplaries'
     __name__ = 'library.book.create_exemplaries'
@@ -301,6 +306,7 @@ class Borrow(metaclass=PoolMeta):
         Exemplary.write(list(self.select_books.exemplaries), {'bookshelf': None})
 
         return res
+
 
 class Return(metaclass=PoolMeta):
     __name__ = 'library.user.return'
